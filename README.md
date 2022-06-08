@@ -18,32 +18,30 @@ Ensure that your software either has an `com.apple.vm.networking` entitlement or
 Start a NAT interface and receive some packets destined to it:
 
 ```rust
-fn main() {
-    let shared_mode = Shared {
-        subnet_options: None,
-        ..Default::default()
-    };
+let shared_mode = Shared {
+    subnet_options: None,
+    ..Default::default()
+};
 
-    let mut iface = Interface::new(Mode::Shared(shared_mode), Options::default()).unwrap();
+let mut iface = Interface::new(Mode::Shared(shared_mode), Options::default()).unwrap();
 
-    let (tx, rx) = sync::mpsc::sync_channel(0);
+let (tx, rx) = sync::mpsc::sync_channel(0);
 
-    iface.set_event_callback(Events::PACKETS_AVAILABLE, move |events, params| {
-        if let Some(Parameter::EstimatedPacketsAvailable(pkts)) = params.get(ParameterKind::EstimatedPacketsAvailable) {
-            tx.send(pkts);
-        }
-    }).unwrap();
-
-    let pkts = rx.recv().unwrap();
-    println!("receiving {} packets...", pkts);
-    for _ in 0..pkts {
-        let mut buf: [u8; 1514] = [0; 1514];
-        println!("{:?}", iface.read(&mut buf));
+iface.set_event_callback(Events::PACKETS_AVAILABLE, move |events, params| {
+    if let Some(Parameter::EstimatedPacketsAvailable(pkts)) = params.get(ParameterKind::EstimatedPacketsAvailable) {
+        tx.send(pkts);
     }
+}).unwrap();
 
-    drop(rx);
-    iface.finalize().unwrap();
+let pkts = rx.recv().unwrap();
+println!("receiving {} packets...", pkts);
+for _ in 0..pkts {
+    let mut buf: [u8; 1514] = [0; 1514];
+    println!("{:?}", iface.read(&mut buf));
 }
+
+drop(rx);
+iface.finalize().unwrap();
 ```
 
 ## Quirks and missing functionality
