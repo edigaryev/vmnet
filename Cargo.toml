@@ -7,7 +7,7 @@ description = "Apple's vmnet.framework bindings"
 repository = "https://github.com/edigaryev/vmnet"
 readme = "README.md"
 keywords = ["macos"]
-categories = ["os:macos-apis"]
+categories = ["os::macos-apis"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
