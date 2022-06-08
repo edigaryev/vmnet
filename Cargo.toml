@@ -1,6 +1,13 @@
 [package]
 name = "vmnet"
 version = "0.1.0"
+authors = ["Nikolay Edigaryev <edigaryev@gmail.com>"]
+license = "MIT"
+description = "Apple's vmnet.framework bindings"
+repository = "https://github.com/edigaryev/vmnet"
+readme = "README.md"
+keywords = ["macos"]
+categories = ["os:macos-apis"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -21,4 +28,4 @@ bitflags = "1.3.2"
 num_enum = "0.5.7"
 thiserror = "1.0.31"
 enum-iterator = "1.1.1"
-vmnet-derive = { path = "vmnet-derive" }
+vmnet-derive = { version = "0.1.0", path = "./vmnet-derive" }
