@@ -1,5 +1,7 @@
 # vmnet
 
+[![Docs.rs](https://img.shields.io/docsrs/vmnet)](https://docs.rs/vmnet)
+
 Apple's [`vmnet.framework`](https://developer.apple.com/documentation/vmnet) bindings for Rust.
 
 ## Installation
