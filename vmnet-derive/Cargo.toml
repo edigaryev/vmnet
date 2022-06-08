@@ -1,6 +1,10 @@
 [package]
 name = "vmnet-derive"
 version = "0.1.0"
+authors = ["Nikolay Edigaryev <edigaryev@gmail.com>"]
+license = "MIT"
+description = "Helper procedural macro for the vmnet crate"
+repository = "https://github.com/edigaryev/vmnet"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
