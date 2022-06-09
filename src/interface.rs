@@ -123,7 +123,7 @@ impl Interface {
         let status = unsafe {
             vmnet::vmnet_interface_set_event_callback(
                 self.interface,
-                0,
+                Events::all().bits(),
                 ptr::null_mut(),
                 ptr::null_mut(),
             )
@@ -209,8 +209,11 @@ mod tests {
         Configuration, IP6Configuration, IPConfiguration, ManualConfiguration,
     };
     use crate::mode::{Bridged, Host, Mode};
-    use crate::{Interface, Options};
+    use crate::{Events, Interface, Options};
     use hexdump::hexdump;
+    use std::sync::Arc;
+    use std::time::Duration;
+    use std::{sync, thread};
 
     #[test]
     fn bridged_simple() {
@@ -288,6 +291,37 @@ mod tests {
     fn shared_simple() {
         let mut iface =
             Interface::new(Mode::Shared(Default::default()), Default::default()).unwrap();
+        iface.finalize().unwrap();
+    }
+
+    #[test]
+    fn blocking_event_callback() {
+        let mut iface =
+            Interface::new(Mode::Shared(Default::default()), Default::default()).unwrap();
+
+        // Barriers that are easy to split into two owners
+        let (callback_ready_tx, callback_ready_rx) = sync::mpsc::sync_channel(0);
+        let (event_cleared_tx, event_cleared_rx) = sync::mpsc::sync_channel(0);
+
+        // Problematic callback that hangs at the time
+        // we call clear_event_callback()
+        iface
+            .set_event_callback(Events::PACKETS_AVAILABLE, move |_, _| {
+                callback_ready_tx.send(()).unwrap();
+                event_cleared_rx.recv().unwrap();
+            })
+            .unwrap();
+
+        // Wait for the callback to be scheduled
+        callback_ready_rx.recv().unwrap();
+
+        // De-schedule callback
+        iface.clear_event_callback().unwrap();
+
+        // Now let the callback finish
+        event_cleared_tx.send(()).unwrap();
+
+        // Ensure that we can finalize() without hangs
         iface.finalize().unwrap();
     }
 }
