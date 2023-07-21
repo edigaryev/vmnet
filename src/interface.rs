@@ -233,9 +233,7 @@ mod tests {
     use crate::mode::{Bridged, Host, Mode};
     use crate::{Events, Interface, Options};
     use hexdump::hexdump;
-    use std::sync::Arc;
-    use std::time::Duration;
-    use std::{sync, thread};
+    use std::sync;
 
     #[test]
     fn bridged_simple() {
