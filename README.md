@@ -10,7 +10,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-vmnet = "0.1.0"
+vmnet = "0"
 ```
 
 ## Usage
