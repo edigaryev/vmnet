@@ -32,10 +32,9 @@ task:
     - Test
   install_rust_script:
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-  install_cargo_release_script:
-    - cargo install --version 0.24.11 cargo-release
   release_script:
-    - cargo release --execute --no-confirm --workspace --allow-branch HEAD --no-tag --no-push
+    - cargo publish -p vmnet-derive
+    - cargo publish
   env:
     PATH: "$PATH:$HOME/.cargo/bin"
     CARGO_REGISTRY_TOKEN: ENCRYPTED[34d8493f2be8724f994ca87ab9f3c9bfe419fa36d9dcb612e68cee795d29e4e73867b6ebc53c27e727358c410ec3bf73]
