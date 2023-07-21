@@ -9,3 +9,14 @@ task:
     - cargo test -- --test-threads 1
   env:
     PATH: "$PATH:$HOME/.cargo/bin"
+
+task:
+  name: Lint
+  install_rust_script:
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  rustfmt_script:
+    - cargo fmt --check
+  clippy_script:
+    - cargo clippy --all-targets --all-features -- -D warnings
+  env:
+    PATH: "$PATH:$HOME/.cargo/bin"
