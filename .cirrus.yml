@@ -3,6 +3,7 @@ macos_instance:
 
 task:
   name: Test
+  use_compute_credits: true
   install_rust_script:
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   test_script:
@@ -12,6 +13,7 @@ task:
 
 task:
   name: Lint
+  use_compute_credits: true
   install_rust_script:
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   rustfmt_script:
@@ -23,6 +25,7 @@ task:
 
 task:
   name: Release
+  use_compute_credits: true
   only_if: $CIRRUS_TAG != ''
   depends_on:
     - Lint
