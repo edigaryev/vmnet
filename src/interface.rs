@@ -153,7 +153,7 @@ impl Interface {
             return Err(Error::VmnetReadNothing);
         }
 
-        Ok(pktdesc.vm_pkt_size as usize)
+        Ok(pktdesc.vm_pkt_size)
     }
 
     pub fn write(&mut self, buf: &[u8]) -> Result<usize> {
@@ -172,7 +172,7 @@ impl Interface {
         let status = unsafe { vmnet::vmnet_write(self.interface, &mut pktdesc, &mut pktcnt) };
         Status::from_ffi(status)?;
 
-        Ok(pktdesc.vm_pkt_size as usize)
+        Ok(pktdesc.vm_pkt_size)
     }
 
     pub fn finalize(&mut self) -> Result<()> {
