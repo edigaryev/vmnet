@@ -31,9 +31,7 @@ task:
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   install_cargo_release_script:
     - cargo install --version 0.24.11 cargo-release
-  cargo_login_script:
-    - cargo login $CARGO_TOKEN
   release_script:
     - cargo release --no-tag --no-push
   env:
-    CARGO_TOKEN: ENCRYPTED[34d8493f2be8724f994ca87ab9f3c9bfe419fa36d9dcb612e68cee795d29e4e73867b6ebc53c27e727358c410ec3bf73]
+    CARGO_REGISTRY_TOKEN: ENCRYPTED[34d8493f2be8724f994ca87ab9f3c9bfe419fa36d9dcb612e68cee795d29e4e73867b6ebc53c27e727358c410ec3bf73]
