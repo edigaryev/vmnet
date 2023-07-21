@@ -52,5 +52,4 @@ iface.finalize().unwrap();
   * this manifests itself in not being able to use `Interface` from such closure
   * however, this can be easily worked around by using [interior mutability pattern](https://doc.rust-lang.org/book/ch15-05-interior-mutability.html) or simply by using the callback as a signal carrier
 * no [port forwarding](https://developer.apple.com/documentation/vmnet/vmnet_functions) support
-* [`vmnet_copy_shared_interface_list()`](https://developer.apple.com/documentation/vmnet/3152677-vmnet_copy_shared_interface_list) is not yet implemented
 * due to `API_AVAILABLE` macro not being supported it is assumed that this package is running on macOS 11.0 or newer

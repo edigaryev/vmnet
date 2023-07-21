@@ -1,15 +1,16 @@
 use crate::ffi::dispatch::{dispatch_get_global_queue, DispatchQueueGlobalT};
 use crate::ffi::vmnet;
-use crate::ffi::vmnet::{Events, InterfaceRef, Status};
-use crate::ffi::xpc::{Dictionary, XpcData, XpcObjectT};
+use crate::ffi::vmnet::{vmnet_copy_shared_interface_list, Events, InterfaceRef, Status};
+use crate::ffi::xpc::{xpc_array_get_count, xpc_array_get_string, Dictionary, XpcData, XpcObjectT};
 use crate::mode::Mode;
 use crate::parameters::{Parameter, ParameterKind, Parameters};
-use crate::Error;
 use crate::Result;
+use crate::Error;
 
 use std::os::raw::c_int;
 
 use std::collections::HashMap;
+use std::ffi::CStr;
 use std::{ptr, sync};
 
 pub struct Interface {
@@ -203,8 +204,29 @@ impl Drop for Interface {
     }
 }
 
+/// Retrieves a list of interfaces for use in [`mode::Mode::Bridged`].
+///
+/// See [official Apple's documentation](https://developer.apple.com/documentation/vmnet/3152677-vmnet_copy_shared_interface_list) for more details.
+pub fn shared_interface_list() -> Vec<String> {
+    let mut result: Vec<String> = Vec::new();
+
+    let shared_interface_list = unsafe { vmnet_copy_shared_interface_list() };
+    let shared_interface_count = unsafe { xpc_array_get_count(shared_interface_list) };
+
+    for i in 0..shared_interface_count {
+        let c_string_ptr = unsafe { xpc_array_get_string(shared_interface_list, i) };
+        let string_value = unsafe { CStr::from_ptr(c_string_ptr) }
+            .to_string_lossy()
+            .to_string();
+        result.push(string_value);
+    }
+
+    result
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::interface::shared_interface_list;
     use crate::mode::host::{
         Configuration, IP6Configuration, IPConfiguration, ManualConfiguration,
     };
@@ -323,5 +345,10 @@ mod tests {
 
         // Ensure that we can finalize() without hangs
         iface.finalize().unwrap();
+    }
+
+    #[test]
+    fn test_retrieve_shared_interfaces() {
+        assert!(shared_interface_list().contains(&"en0".to_string()));
     }
 }

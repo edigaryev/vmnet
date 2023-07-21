@@ -4,7 +4,7 @@ pub use dictionary::Dictionary;
 mod xpc_data;
 pub use xpc_data::XpcData;
 
-use std::ffi::c_void;
+use std::ffi::{c_int, c_void};
 
 use std::os::raw::{c_char, c_uchar};
 
@@ -23,6 +23,9 @@ extern "C" {
     pub fn xpc_uint64_get_value(xuint: XpcObjectT) -> u64;
     pub fn xpc_string_get_string_ptr(xstring: XpcObjectT) -> *const c_char;
     pub fn xpc_uuid_get_bytes(xuuid: XpcObjectT) -> *const c_uchar;
+
+    pub fn xpc_array_get_count(xarray: XpcObjectT) -> c_int;
+    pub fn xpc_array_get_string(xarray: XpcObjectT, index: c_int) -> *const c_char;
 }
 
 extern "C" {
