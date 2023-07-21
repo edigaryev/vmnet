@@ -204,7 +204,7 @@ impl Drop for Interface {
     }
 }
 
-/// Retrieves a list of interfaces for use in [`mode::Mode::Bridged`].
+/// Retrieves a list of interfaces for use in [`Bridged`](Mode::Bridged) mode.
 ///
 /// See [official Apple's documentation](https://developer.apple.com/documentation/vmnet/3152677-vmnet_copy_shared_interface_list) for more details.
 pub fn shared_interface_list() -> Vec<String> {
