@@ -27,8 +27,8 @@ task:
   depends_on:
     - Lint
     - Test
-  container:
-    image: rust:latest
+  install_rust_script:
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   install_cargo_release_script:
     - cargo install --version 0.24.11 cargo-release
   cargo_login_script:
