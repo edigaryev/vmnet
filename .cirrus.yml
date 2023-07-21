@@ -34,8 +34,6 @@ task:
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   install_cargo_release_script:
     - cargo install --version 0.24.11 cargo-release
-  bump_version_script:
-    - cargo release version --execute --workspace --no-confirm $CIRRUS_TAG
   release_script:
     - cargo release --execute --workspace --no-tag --no-push
   env:
