@@ -20,3 +20,20 @@ task:
     - cargo clippy --all-targets --all-features -- -D warnings
   env:
     PATH: "$PATH:$HOME/.cargo/bin"
+
+task:
+  name: Release
+  only_if: $CIRRUS_TAG != ''
+  depends_on:
+    - Lint
+    - Test
+  container:
+    image: rust:latest
+  install_cargo_release_script:
+    - cargo install --version 0.24.11 cargo-release
+  cargo_login_script:
+    - cargo login $CARGO_TOKEN
+  release_script:
+    - cargo release --no-tag --no-push
+  env:
+    CARGO_TOKEN: ENCRYPTED[34d8493f2be8724f994ca87ab9f3c9bfe419fa36d9dcb612e68cee795d29e4e73867b6ebc53c27e727358c410ec3bf73]
