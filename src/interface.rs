@@ -4,8 +4,8 @@ use crate::ffi::vmnet::{vmnet_copy_shared_interface_list, Events, InterfaceRef, 
 use crate::ffi::xpc::{xpc_array_get_count, xpc_array_get_string, Dictionary, XpcData, XpcObjectT};
 use crate::mode::Mode;
 use crate::parameters::{Parameter, ParameterKind, Parameters};
-use crate::Result;
 use crate::Error;
+use crate::Result;
 
 use std::os::raw::c_int;
 
