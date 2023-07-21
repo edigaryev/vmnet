@@ -22,6 +22,7 @@ pub struct vmpktdesc {
 
 #[link(name = "vmnet", kind = "framework")]
 extern "C" {
+    // Interface functions
     pub fn vmnet_start_interface(
         interface_desc: XpcObjectT,
         queue: DispatchQueueGlobalT,
@@ -48,6 +49,9 @@ extern "C" {
         queue: DispatchQueueGlobalT,
         handler: *mut c_void,
     ) -> VmnetReturnT;
+
+    // Utility functions
+    pub fn vmnet_copy_shared_interface_list() -> XpcObjectT;
 
     // Mode selector
     pub static vmnet_operation_mode_key: *const c_char;
