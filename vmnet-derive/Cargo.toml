@@ -1,6 +1,6 @@
 [package]
 name = "vmnet-derive"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Nikolay Edigaryev <edigaryev@gmail.com>"]
 license = "MIT"
 description = "Helper procedural macro for the vmnet crate"
