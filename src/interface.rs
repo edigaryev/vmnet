@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use std::ffi::CStr;
 use std::{ptr, sync};
 
+/// A virtual network interface.
 pub struct Interface {
     queue: DispatchQueueGlobalT,
     interface: InterfaceRef,
@@ -20,6 +21,7 @@ pub struct Interface {
     finalized: bool,
 }
 
+/// Options that are common to all interface modes.
 #[derive(Debug, Default)]
 pub struct Options {
     pub allocate_mac_address: Option<bool>,
@@ -46,6 +48,7 @@ impl From<Options> for Vec<Parameter> {
 }
 
 impl Interface {
+    /// Creates a new interface in a specified mode and with the specified options.
     pub fn new(mode: Mode, options: Options) -> Result<Interface> {
         let queue = unsafe { dispatch_get_global_queue(0, 0) };
 
@@ -93,10 +96,12 @@ impl Interface {
         })
     }
 
+    /// Retrieves interface parameters (for example, an [assigned gateway IP address](crate::parameters::ParameterKind::StartAddress) or an [MTU](crate::parameters::ParameterKind::MTU)) that are available only after the interface is created.
     pub fn parameters(&self) -> &Parameters {
         &self.parameters
     }
 
+    /// Schedules a callback to be executed when events for the specified interface are received.
     pub fn set_event_callback<F>(&mut self, events: Events, cb: F) -> Result<()>
     where
         F: Fn(Events, &Parameters) + 'static,
@@ -120,6 +125,7 @@ impl Interface {
         Status::from_ffi(status)
     }
 
+    /// Removes the event callback scheduled by a call to [`set_event_callback()`](Interface::set_event_callback()).
     pub fn clear_event_callback(&mut self) -> Result<()> {
         let status = unsafe {
             vmnet::vmnet_interface_set_event_callback(
@@ -133,6 +139,7 @@ impl Interface {
         Status::from_ffi(status)
     }
 
+    /// Attempts to read a single packet from the interface.
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         let mut iov = libc::iovec {
             iov_base: buf.as_mut_ptr().cast(),
@@ -156,6 +163,7 @@ impl Interface {
         Ok(pktdesc.vm_pkt_size)
     }
 
+    /// Attempts to write a single packet to the interface.
     pub fn write(&mut self, buf: &[u8]) -> Result<usize> {
         let mut iov = libc::iovec {
             iov_base: buf.as_ptr() as *mut _,
@@ -175,6 +183,8 @@ impl Interface {
         Ok(pktdesc.vm_pkt_size)
     }
 
+    /// Stops the interface, allowing to catch errors (compared to [`drop()`](Interface::drop()),
+    /// which will simply ignore any errors).
     pub fn finalize(&mut self) -> Result<()> {
         let (tx, rx) = sync::mpsc::sync_channel(1);
         let block = block::ConcreteBlock::new(move |status: vmnet::VmnetReturnT| {

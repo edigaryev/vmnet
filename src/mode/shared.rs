@@ -2,6 +2,7 @@ use crate::ffi::vmnet;
 use crate::mode::common::SubnetOptions;
 use crate::parameters::Parameter;
 
+/// Interface mode that provides the ability to communicate with the host and the internet (by using NAT).
 #[derive(Debug, Default, Clone)]
 pub struct Shared {
     pub subnet_options: Option<SubnetOptions>,

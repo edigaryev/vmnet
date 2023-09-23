@@ -87,6 +87,7 @@ extern "C" {
     pub static vmnet_estimated_packets_available_key: *const c_char;
 }
 
+/// A status returned by the [vmnet.framework](https://developer.apple.com/documentation/vmnet).
 #[derive(TryFromPrimitive)]
 #[repr(u32)]
 #[derive(Debug, Eq, PartialEq)]
@@ -124,6 +125,7 @@ pub enum Mode {
 }
 
 bitflags! {
+    /// Describes events received for a given [interface callback call](crate::Interface::set_event_callback).
     pub struct Events: u32 {
         const PACKETS_AVAILABLE = 1 << 0;
     }

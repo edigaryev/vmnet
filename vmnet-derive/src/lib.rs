@@ -115,6 +115,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
     }
 
     let output = quote! {
+        /// Parameter key (kind) useful for retrieving a specific parameter from the [`Parameters`](Parameters) dictionary.
         #[derive(Debug, Hash, Eq, PartialEq, Sequence)]
         pub enum #kind_enum_name {
             #(#kinds),*

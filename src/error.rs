@@ -1,5 +1,6 @@
 use crate::ffi::vmnet;
 
+/// A specialized [`Error`](https://doc.rust-lang.org/std/error/trait.Error.html) type for errors involving [vmnet.framework](https://developer.apple.com/documentation/vmnet).
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("vmnet returned an error status")]

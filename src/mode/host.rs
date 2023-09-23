@@ -2,6 +2,7 @@ use crate::ffi::vmnet;
 use crate::mode::common::SubnetOptions;
 use crate::parameters::Parameter;
 
+/// Interface mode that only provides the ability to communicate with the host by default.
 #[derive(Debug, Default, Clone)]
 pub struct Host {
     pub configuration: Option<Configuration>,

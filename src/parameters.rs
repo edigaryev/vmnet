@@ -19,10 +19,12 @@ lazy_static! {
         .collect();
 }
 
+/// Dictionary of retrieved parameters.
 pub struct Parameters {
     xdict: xpc::Dictionary,
 }
 
+/// A single parameter with its value.
 #[derive(Debug, Vmnet)]
 pub enum Parameter {
     #[vmnet(ffi = "vmnet_operation_mode_key")]
@@ -61,6 +63,7 @@ pub enum Parameter {
     EndAddress(String),
     #[vmnet(ffi = "vmnet_subnet_mask_key")]
     SubnetMask(String),
+    /// The estimated number of packets available to be read.
     #[vmnet(ffi = "vmnet_estimated_packets_available_key")]
     EstimatedPacketsAvailable(u64),
 }
