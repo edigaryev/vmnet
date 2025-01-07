@@ -46,7 +46,7 @@ drop(rx);
 iface.finalize().unwrap();
 ```
 
-## Quirks and missing functionality
+## Quirks
 
 * due to Apple's usage of [blocks](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)) as a way to retrieve API call results, some methods like `set_event_callback()` require the provided closure to have a `'static` lifetime
   * this manifests itself in not being able to use `Interface` from such closure
