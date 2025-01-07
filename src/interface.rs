@@ -193,7 +193,7 @@ impl Interface {
         address_family: AddressFamily,
         protocol: Protocol,
         external_port: u16,
-        addr: Ipv4Addr,
+        addr: IpAddr,
         internal_port: u16,
     ) -> Result<()> {
         let (tx, rx) = sync::mpsc::sync_channel(1);
@@ -202,13 +202,18 @@ impl Interface {
         });
         let block = block.copy();
 
+        let addr_ffi = match addr {
+            IpAddr::V4(addr) => Vec::from(addr.octets()),
+            IpAddr::V6(addr) => Vec::from(addr.octets()),
+        };
+
         let status = unsafe {
             vmnet::vmnet_interface_add_ip_port_forwarding_rule(
                 self.interface,
                 protocol as u8,
                 external_port,
                 address_family as u8,
-                addr.octets().as_ptr().cast(),
+                addr_ffi.as_ptr().cast(),
                 internal_port,
                 &*block as *const _ as *mut _,
             )
@@ -382,7 +387,7 @@ mod tests {
     use crate::port_forwarding::{AddressFamily, Protocol, Rule};
     use crate::{Events, Interface, Options};
     use hexdump::hexdump;
-    use std::net::Ipv4Addr;
+    use std::net::{IpAddr, Ipv4Addr};
     use std::str::FromStr;
     use std::sync;
 
@@ -515,7 +520,7 @@ mod tests {
             panic!("failed to retrieve interface's end address");
         };
 
-        let addr = Ipv4Addr::from_str(end_address.as_str()).unwrap();
+        let addr: IpAddr = Ipv4Addr::from_str(end_address.as_str()).unwrap().into();
 
         // Remove a non-existent rule
         assert!(iface
@@ -535,14 +540,14 @@ mod tests {
                     address_family: AddressFamily::Ipv4,
                     protocol: Protocol::Tcp,
                     external_port: 2222,
-                    addr: addr.into(),
+                    addr,
                     internal_port: 22,
                 },
                 Rule {
                     address_family: AddressFamily::Ipv4,
                     protocol: Protocol::Tcp,
                     external_port: 8080,
-                    addr: addr.into(),
+                    addr,
                     internal_port: 80,
                 },
             ],
@@ -563,7 +568,7 @@ mod tests {
                 address_family: AddressFamily::Ipv4,
                 protocol: Protocol::Tcp,
                 external_port: 2222,
-                addr: addr.into(),
+                addr,
                 internal_port: 22,
             }],
             iface.port_forwarding_rules(AddressFamily::Ipv4).unwrap(),
