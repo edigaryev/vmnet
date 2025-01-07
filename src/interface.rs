@@ -1,7 +1,9 @@
 use crate::ffi::dispatch::{dispatch_get_global_queue, DispatchQueueGlobalT};
 use crate::ffi::vmnet;
 use crate::ffi::vmnet::{vmnet_copy_shared_interface_list, Events, InterfaceRef, Status};
-use crate::ffi::xpc::{xpc_array_get_count, xpc_array_get_string, Dictionary, XpcData, XpcObjectT};
+use crate::ffi::xpc::{
+    xpc_array_get_count, xpc_array_get_string, xpc_array_get_value, Dictionary, XpcData, XpcObjectT,
+};
 use crate::mode::Mode;
 use crate::parameters::{Parameter, ParameterKind, Parameters};
 use crate::Error;
@@ -9,8 +11,10 @@ use crate::Result;
 
 use std::os::raw::c_int;
 
+use crate::port_forwarding::{AddressFamily, Protocol, Rule};
 use std::collections::HashMap;
 use std::ffi::CStr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::{ptr, sync};
 
 /// A virtual network interface.
@@ -183,6 +187,139 @@ impl Interface {
         Ok(pktdesc.vm_pkt_size)
     }
 
+    /// Add a new port forwarding rule on an interface.
+    pub fn port_forwarding_add_rule(
+        &mut self,
+        address_family: AddressFamily,
+        protocol: Protocol,
+        external_port: u16,
+        addr: Ipv4Addr,
+        internal_port: u16,
+    ) -> Result<()> {
+        let (tx, rx) = sync::mpsc::sync_channel(1);
+        let block = block::ConcreteBlock::new(move |status: vmnet::VmnetReturnT| {
+            tx.send(status).unwrap();
+        });
+        let block = block.copy();
+
+        let status = unsafe {
+            vmnet::vmnet_interface_add_ip_port_forwarding_rule(
+                self.interface,
+                protocol as u8,
+                external_port,
+                address_family as u8,
+                addr.octets().as_ptr().cast(),
+                internal_port,
+                &*block as *const _ as *mut _,
+            )
+        };
+        Status::from_ffi(status)?;
+
+        Status::from_ffi(rx.recv().unwrap())
+    }
+
+    /// List port forwarding rules on an interface.
+    pub fn port_forwarding_rules(&mut self, address_family: AddressFamily) -> Result<Vec<Rule>> {
+        let (tx, rx) = sync::mpsc::sync_channel(1);
+        let block = block::ConcreteBlock::new(move |xpc_object: XpcObjectT| {
+            let mut result = Vec::new();
+
+            if xpc_object.is_null() {
+                tx.send(Ok(result)).unwrap();
+
+                return;
+            }
+
+            for i in 0..unsafe { xpc_array_get_count(xpc_object) } {
+                let rule = unsafe { xpc_array_get_value(xpc_object, i) };
+
+                let mut protocol: u8 = 0;
+                let mut external_port: u16 = 0;
+                let mut internal_address: Vec<u8> = match address_family {
+                    AddressFamily::Ipv4 => vec![0; 4],
+                    AddressFamily::Ipv6 => vec![0; 16],
+                };
+                let mut internal_port: u16 = 0;
+
+                let status = unsafe {
+                    vmnet::vmnet_ip_port_forwarding_rule_get_details(
+                        rule,
+                        &mut protocol,
+                        &mut external_port,
+                        address_family.into(),
+                        internal_address.as_mut_ptr() as *mut libc::c_void,
+                        &mut internal_port,
+                    )
+                };
+                if let Err(error) = Status::from_ffi(status) {
+                    tx.send(Err(error)).unwrap();
+
+                    return;
+                }
+
+                let addr: IpAddr = match address_family {
+                    AddressFamily::Ipv4 => {
+                        let buf: [u8; 4] = internal_address.as_slice().try_into().unwrap();
+                        Ipv4Addr::from(buf).into()
+                    }
+                    AddressFamily::Ipv6 => {
+                        let buf: [u8; 16] = internal_address.as_slice().try_into().unwrap();
+                        Ipv6Addr::from(buf).into()
+                    }
+                };
+
+                result.push(Rule {
+                    address_family,
+                    protocol: protocol.try_into().unwrap(),
+                    external_port,
+                    addr,
+                    internal_port,
+                });
+            }
+
+            tx.send(Ok(result)).unwrap();
+        });
+        let block = block.copy();
+
+        let status = unsafe {
+            vmnet::vmnet_interface_get_ip_port_forwarding_rules(
+                self.interface,
+                address_family as u8,
+                &*block as *const _ as *mut _,
+            )
+        };
+        Status::from_ffi(status)?;
+
+        rx.recv().unwrap()
+    }
+
+    /// Remove an existing port forwarding rule on an interface.
+    pub fn port_forwarding_remove_rule(
+        &mut self,
+        address_family: AddressFamily,
+        protocol: Protocol,
+        external_port: u16,
+    ) -> Result<()> {
+        let (tx, rx) = sync::mpsc::sync_channel(1);
+        let block = block::ConcreteBlock::new(move |status: vmnet::VmnetReturnT| {
+            tx.send(status).unwrap();
+        });
+        let block = block.copy();
+
+        let status = unsafe {
+            vmnet::vmnet_interface_remove_ip_port_forwarding_rule(
+                self.interface,
+                protocol as u8,
+                external_port,
+                address_family as u8,
+                &*block as *const _ as *mut _,
+            )
+        };
+        Status::from_ffi(status)?;
+
+        Status::from_ffi(rx.recv().unwrap())
+    }
+
     /// Stops the interface, allowing to catch errors (compared to [`drop()`](Interface::drop()),
     /// which will simply ignore any errors).
     pub fn finalize(&mut self) -> Result<()> {
@@ -240,9 +377,13 @@ mod tests {
     use crate::mode::host::{
         Configuration, IP6Configuration, IPConfiguration, ManualConfiguration,
     };
-    use crate::mode::{Bridged, Host, Mode};
+    use crate::mode::{Bridged, Host, Mode, Shared};
+    use crate::parameters::{Parameter, ParameterKind};
+    use crate::port_forwarding::{AddressFamily, Protocol, Rule};
     use crate::{Events, Interface, Options};
     use hexdump::hexdump;
+    use std::net::Ipv4Addr;
+    use std::str::FromStr;
     use std::sync;
 
     #[test]
@@ -358,5 +499,85 @@ mod tests {
     #[test]
     fn test_retrieve_shared_interfaces() {
         assert!(shared_interface_list().contains(&"en0".to_string()));
+    }
+
+    #[test]
+    fn port_forwarding() {
+        // Create an interface
+        let mut iface =
+            Interface::new(Mode::Shared(Shared::default()), Default::default()).unwrap();
+
+        // Figure out interface's end address
+        // that we'll use for port forwarding
+        let Some(Parameter::EndAddress(end_address)) =
+            iface.parameters().get(ParameterKind::EndAddress)
+        else {
+            panic!("failed to retrieve interface's end address");
+        };
+
+        let addr = Ipv4Addr::from_str(end_address.as_str()).unwrap();
+
+        // Remove a non-existent rule
+        assert!(iface
+            .port_forwarding_remove_rule(AddressFamily::Ipv4, Protocol::Tcp, 2222)
+            .is_err());
+
+        // Configure port forwarding
+        iface
+            .port_forwarding_add_rule(AddressFamily::Ipv4, Protocol::Tcp, 2222, addr, 22)
+            .unwrap();
+        iface
+            .port_forwarding_add_rule(AddressFamily::Ipv4, Protocol::Tcp, 8080, addr, 80)
+            .unwrap();
+        assert_eq!(
+            vec![
+                Rule {
+                    address_family: AddressFamily::Ipv4,
+                    protocol: Protocol::Tcp,
+                    external_port: 2222,
+                    addr: addr.into(),
+                    internal_port: 22,
+                },
+                Rule {
+                    address_family: AddressFamily::Ipv4,
+                    protocol: Protocol::Tcp,
+                    external_port: 8080,
+                    addr: addr.into(),
+                    internal_port: 80,
+                },
+            ],
+            iface.port_forwarding_rules(AddressFamily::Ipv4).unwrap(),
+        );
+
+        // Remove a non-existent rule
+        assert!(iface
+            .port_forwarding_remove_rule(AddressFamily::Ipv4, Protocol::Tcp, 4242)
+            .is_err());
+
+        // Remove the second rule
+        iface
+            .port_forwarding_remove_rule(AddressFamily::Ipv4, Protocol::Tcp, 8080)
+            .unwrap();
+        assert_eq!(
+            vec![Rule {
+                address_family: AddressFamily::Ipv4,
+                protocol: Protocol::Tcp,
+                external_port: 2222,
+                addr: addr.into(),
+                internal_port: 22,
+            }],
+            iface.port_forwarding_rules(AddressFamily::Ipv4).unwrap(),
+        );
+
+        // Remove the remaining first rule
+        iface
+            .port_forwarding_remove_rule(AddressFamily::Ipv4, Protocol::Tcp, 2222)
+            .unwrap();
+        assert_eq!(
+            Vec::<Rule>::new(),
+            iface.port_forwarding_rules(AddressFamily::Ipv4).unwrap(),
+        );
+
+        iface.finalize().unwrap();
     }
 }

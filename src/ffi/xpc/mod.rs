@@ -26,6 +26,7 @@ extern "C" {
 
     pub fn xpc_array_get_count(xarray: XpcObjectT) -> c_int;
     pub fn xpc_array_get_string(xarray: XpcObjectT, index: c_int) -> *const c_char;
+    pub fn xpc_array_get_value(xarray: XpcObjectT, index: c_int) -> XpcObjectT;
 }
 
 extern "C" {

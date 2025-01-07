@@ -50,6 +50,37 @@ extern "C" {
         handler: *mut c_void,
     ) -> VmnetReturnT;
 
+    // Interface port forwarding functions
+    pub fn vmnet_interface_add_ip_port_forwarding_rule(
+        interface: InterfaceRef,
+        protocol: u8,
+        external_port: u16,
+        address_family: u8,
+        internal_address: *const c_void,
+        internal_port: u16,
+        handler: *mut c_void,
+    ) -> VmnetReturnT;
+    pub fn vmnet_interface_get_ip_port_forwarding_rules(
+        interface: InterfaceRef,
+        address_family: u8,
+        handler: *mut c_void,
+    ) -> VmnetReturnT;
+    pub fn vmnet_ip_port_forwarding_rule_get_details(
+        rule: XpcObjectT,
+        protocol: *mut u8,
+        external_port: *mut u16,
+        address_family: u8,
+        internal_address: *mut c_void,
+        internal_port: *mut u16,
+    ) -> VmnetReturnT;
+    pub fn vmnet_interface_remove_ip_port_forwarding_rule(
+        interface: InterfaceRef,
+        protocol: u8,
+        external_port: u16,
+        address_family: u8,
+        handler: *mut c_void,
+    ) -> VmnetReturnT;
+
     // Utility functions
     pub fn vmnet_copy_shared_interface_list() -> XpcObjectT;
 

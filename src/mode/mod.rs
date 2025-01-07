@@ -1,15 +1,15 @@
 /// Structs that are common to more than one mode.
 pub mod common;
 
-/// Structs describing the [`Bridged`](bridged::Bridged) mode.
+/// Structs describing the [`Bridged`] mode.
 pub mod bridged;
 pub use bridged::Bridged;
 
-/// Structs and enumerations describing the [`Host`](host::Host) mode.
+/// Structs and enumerations describing the [`Host`] mode.
 pub mod host;
 pub use host::Host;
 
-/// Structs describing the [`Shared`](shared::Shared) (or NAT) mode.
+/// Structs describing the [`Shared`] (or NAT) mode.
 pub mod shared;
 pub use shared::Shared;
 

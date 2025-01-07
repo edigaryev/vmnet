@@ -15,5 +15,9 @@ pub use error::Error;
 pub type Result<T> = std::result::Result<T, Error>;
 
 mod interface;
+
+/// Structures related to port forwarding functionality.
+pub mod port_forwarding;
+
 pub use interface::shared_interface_list;
 pub use interface::{Interface, Options};
