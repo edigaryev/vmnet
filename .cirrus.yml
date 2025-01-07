@@ -3,6 +3,7 @@ macos_instance:
 
 task:
   use_compute_credits: true
+  alias: Test
 
   matrix:
     - name: Test on macOS Monterey
