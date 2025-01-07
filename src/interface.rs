@@ -193,7 +193,7 @@ impl Interface {
         address_family: AddressFamily,
         protocol: Protocol,
         external_port: u16,
-        addr: IpAddr,
+        internal_addr: IpAddr,
         internal_port: u16,
     ) -> Result<()> {
         let (tx, rx) = sync::mpsc::sync_channel(1);
@@ -202,7 +202,7 @@ impl Interface {
         });
         let block = block.copy();
 
-        let addr_ffi = match addr {
+        let internal_addr_ffi = match internal_addr {
             IpAddr::V4(addr) => Vec::from(addr.octets()),
             IpAddr::V6(addr) => Vec::from(addr.octets()),
         };
@@ -213,7 +213,7 @@ impl Interface {
                 protocol as u8,
                 external_port,
                 address_family as u8,
-                addr_ffi.as_ptr().cast(),
+                internal_addr_ffi.as_ptr().cast(),
                 internal_port,
                 &*block as *const _ as *mut _,
             )
