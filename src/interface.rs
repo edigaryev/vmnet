@@ -188,7 +188,7 @@ impl Interface {
     }
 
     /// Add a new port forwarding rule on an interface.
-    pub fn port_forwarding_add_rule(
+    pub fn port_forwarding_rule_add(
         &mut self,
         address_family: AddressFamily,
         protocol: Protocol,
@@ -299,7 +299,7 @@ impl Interface {
     }
 
     /// Remove an existing port forwarding rule on an interface.
-    pub fn port_forwarding_remove_rule(
+    pub fn port_forwarding_rule_remove(
         &mut self,
         address_family: AddressFamily,
         protocol: Protocol,
@@ -524,15 +524,15 @@ mod tests {
 
         // Remove a non-existent rule
         assert!(iface
-            .port_forwarding_remove_rule(AddressFamily::Ipv4, Protocol::Tcp, 2222)
+            .port_forwarding_rule_remove(AddressFamily::Ipv4, Protocol::Tcp, 2222)
             .is_err());
 
         // Configure port forwarding
         iface
-            .port_forwarding_add_rule(AddressFamily::Ipv4, Protocol::Tcp, 2222, addr, 22)
+            .port_forwarding_rule_add(AddressFamily::Ipv4, Protocol::Tcp, 2222, addr, 22)
             .unwrap();
         iface
-            .port_forwarding_add_rule(AddressFamily::Ipv4, Protocol::Tcp, 8080, addr, 80)
+            .port_forwarding_rule_add(AddressFamily::Ipv4, Protocol::Tcp, 8080, addr, 80)
             .unwrap();
         assert_eq!(
             vec![
@@ -556,12 +556,12 @@ mod tests {
 
         // Remove a non-existent rule
         assert!(iface
-            .port_forwarding_remove_rule(AddressFamily::Ipv4, Protocol::Tcp, 4242)
+            .port_forwarding_rule_remove(AddressFamily::Ipv4, Protocol::Tcp, 4242)
             .is_err());
 
         // Remove the second rule
         iface
-            .port_forwarding_remove_rule(AddressFamily::Ipv4, Protocol::Tcp, 8080)
+            .port_forwarding_rule_remove(AddressFamily::Ipv4, Protocol::Tcp, 8080)
             .unwrap();
         assert_eq!(
             vec![Rule {
@@ -576,7 +576,7 @@ mod tests {
 
         // Remove the remaining first rule
         iface
-            .port_forwarding_remove_rule(AddressFamily::Ipv4, Protocol::Tcp, 2222)
+            .port_forwarding_rule_remove(AddressFamily::Ipv4, Protocol::Tcp, 2222)
             .unwrap();
         assert_eq!(
             Vec::<Rule>::new(),
