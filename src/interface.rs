@@ -379,9 +379,6 @@ pub fn shared_interface_list() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use crate::interface::shared_interface_list;
-    use crate::mode::host::{
-        Configuration, IP6Configuration, IPConfiguration, ManualConfiguration,
-    };
     use crate::mode::{Bridged, Host, Mode, Shared};
     use crate::parameters::{Parameter, ParameterKind};
     use crate::port_forwarding::{AddressFamily, Protocol, Rule};
@@ -409,16 +406,6 @@ mod tests {
     #[test]
     fn host_network_identifier() {
         let host_config = Host {
-            configuration: Some(Configuration::Manual(ManualConfiguration {
-                network_identifier: uuid::Uuid::new_v4(),
-                ip_configuration: Some(IPConfiguration {
-                    address: "214.0.0.1".to_string(),
-                    subnet_mask: "255.255.255.0".to_string(),
-                }),
-                ip6_configuration: Some(IP6Configuration {
-                    address: "1337::1".to_string(),
-                }),
-            })),
             ..Default::default()
         };
 
@@ -534,6 +521,12 @@ mod tests {
         iface
             .port_forwarding_rule_add(AddressFamily::Ipv4, Protocol::Tcp, 8080, addr, 80)
             .unwrap();
+
+        // Retrieve the installed rules and sort them by external_port in ascending order
+        let mut installed_rules = iface.port_forwarding_rules(AddressFamily::Ipv4).unwrap();
+        installed_rules.sort_by(|x, y| x.external_port.cmp(&y.external_port));
+
+        // Ensure that the installed rules reflect our previous actions
         assert_eq!(
             vec![
                 Rule {
@@ -551,7 +544,7 @@ mod tests {
                     internal_port: 80,
                 },
             ],
-            iface.port_forwarding_rules(AddressFamily::Ipv4).unwrap(),
+            installed_rules,
         );
 
         // Remove a non-existent rule
