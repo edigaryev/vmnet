@@ -92,6 +92,8 @@ extern "C" {
     pub static vmnet_allocate_mac_address_key: *const c_char;
     pub static vmnet_interface_id_key: *const c_char;
     pub static vmnet_max_packet_size_key: *const c_char;
+    pub static vmnet_read_max_packets_key: *const c_char;
+    pub static vmnet_write_max_packets_key: *const c_char;
     pub static vmnet_enable_checksum_offload_key: *const c_char;
     pub static vmnet_enable_isolation_key: *const c_char;
     pub static vmnet_enable_tso_key: *const c_char;
