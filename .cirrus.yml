@@ -46,7 +46,7 @@ task:
   install_rust_script:
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
   release_script:
-    - cargo publish -p vmnet-derive
+    - cargo publish -p vmnet-derive || true
     - cargo publish
 
   env:
