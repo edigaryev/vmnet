@@ -12,7 +12,7 @@ pub struct Batch {
 impl Batch {
     /// Preallocates a batch of size `count` which holds the packet descriptors.
     ///
-    /// These packet descriptors and is used internally by [`Interface::read_batch()`](crate::Interface::read_batch)
+    /// These packet descriptors are used internally by [`Interface::read_batch()`](crate::Interface::read_batch)
     /// and [`Interface::write_batch()`](crate::Interface::write_batch).
     ///
     /// Note that you'll only be able to receive or send as many packets
