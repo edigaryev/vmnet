@@ -51,4 +51,4 @@ iface.finalize().unwrap();
 * due to Apple's usage of [blocks](https://en.wikipedia.org/wiki/Blocks_(C_language_extension)) as a way to retrieve API call results, some methods like `set_event_callback()` require the provided closure to have a `'static` lifetime
   * this manifests itself in not being able to use `Interface` from such closure
   * however, this can be easily worked around by using [interior mutability pattern](https://doc.rust-lang.org/book/ch15-05-interior-mutability.html) or simply by using the callback as a signal carrier
-* due to `API_AVAILABLE` macro not being supported it is assumed that this package is running on macOS 11.0 or newer
+* due to `API_AVAILABLE` macro not being supported it is assumed that this package is running on macOS 15.0 or newer
