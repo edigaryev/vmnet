@@ -39,6 +39,10 @@ pub enum Parameter {
     InterfaceID(Uuid),
     #[vmnet(ffi = "vmnet_max_packet_size_key")]
     MaxPacketSize(u64),
+    #[vmnet(ffi = "vmnet_read_max_packets_key")]
+    ReadMaxPackets(u64),
+    #[vmnet(ffi = "vmnet_write_max_packets_key")]
+    WriteMaxPackets(u64),
     #[vmnet(ffi = "vmnet_enable_checksum_offload_key")]
     EnableChecksumOffload(bool),
     #[vmnet(ffi = "vmnet_enable_isolation_key")]

@@ -21,3 +21,6 @@ pub mod port_forwarding;
 
 pub use interface::shared_interface_list;
 pub use interface::{Interface, Options};
+
+mod batch;
+pub use batch::Batch;

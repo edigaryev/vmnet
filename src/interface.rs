@@ -11,9 +11,11 @@ use crate::Result;
 
 use std::os::raw::c_int;
 
+use crate::batch::Batch;
 use crate::port_forwarding::{AddressFamily, Protocol, Rule};
+use std::cmp::min;
 use std::collections::HashMap;
-use std::ffi::CStr;
+use std::ffi::{c_void, CStr};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::{ptr, sync};
 
@@ -167,6 +169,41 @@ impl Interface {
         Ok(pktdesc.vm_pkt_size)
     }
 
+    /// Reads multiple packets from the interface.
+    ///
+    /// On `batch` and `bufs` size mismatch, the maximum number of packets
+    /// to be read will be limited to the lowest common denominator.
+    ///
+    /// Returns the number of packets read.
+    pub fn read_batch<'a, B>(&mut self, batch: &'a mut Batch, bufs: &'a mut [B]) -> Result<usize>
+    where
+        B: AsMut<[u8]>,
+    {
+        // Update the batch
+        for (pktdesc, buf) in batch.pktdescs.iter_mut().zip(bufs.iter_mut()) {
+            let buf_mut = buf.as_mut();
+
+            pktdesc.vm_pkt_size = buf_mut.len();
+
+            unsafe {
+                (*pktdesc.vm_pkt_iov).iov_base = buf_mut.as_mut_ptr() as *mut c_void;
+                (*pktdesc.vm_pkt_iov).iov_len = buf_mut.len();
+            }
+        }
+
+        let mut pktcnt = min(batch.pktdescs.len(), bufs.len()) as c_int;
+
+        let status =
+            unsafe { vmnet::vmnet_read(self.interface, batch.pktdescs.as_mut_ptr(), &mut pktcnt) };
+        Status::from_ffi(status)?;
+
+        if pktcnt == 0 {
+            return Err(Error::VmnetReadNothing);
+        }
+
+        Ok(pktcnt as usize)
+    }
+
     /// Attempts to write a single packet to the interface.
     pub fn write(&mut self, buf: &[u8]) -> Result<usize> {
         let mut iov = libc::iovec {
@@ -185,6 +222,37 @@ impl Interface {
         Status::from_ffi(status)?;
 
         Ok(pktdesc.vm_pkt_size)
+    }
+
+    /// Writes multiple packets to the interface.
+    ///
+    /// On `batch` and `bufs` size mismatch, the maximum number of packets
+    /// to be written will be limited to the lowest common denominator.
+    ///
+    /// Returns the number of packets written.
+    pub fn write_batch<B>(&mut self, batch: &mut Batch, bufs: &[B]) -> Result<usize>
+    where
+        B: AsRef<[u8]>,
+    {
+        // Update the batch
+        for (pktdesc, buf) in batch.pktdescs.iter_mut().zip(bufs) {
+            let buf_ref = buf.as_ref();
+
+            pktdesc.vm_pkt_size = buf_ref.len();
+
+            unsafe {
+                (*pktdesc.vm_pkt_iov).iov_base = buf_ref.as_ptr() as *mut c_void;
+                (*pktdesc.vm_pkt_iov).iov_len = buf_ref.len();
+            }
+        }
+
+        let mut pktcnt = min(batch.pktdescs.len(), bufs.len()) as c_int;
+
+        let status =
+            unsafe { vmnet::vmnet_write(self.interface, batch.pktdescs.as_mut_ptr(), &mut pktcnt) };
+        Status::from_ffi(status)?;
+
+        Ok(pktcnt as usize)
     }
 
     /// Add a new port forwarding rule on an interface.
@@ -382,11 +450,14 @@ mod tests {
     use crate::mode::{Bridged, Host, Mode, Shared};
     use crate::parameters::{Parameter, ParameterKind};
     use crate::port_forwarding::{AddressFamily, Protocol, Rule};
-    use crate::{Events, Interface, Options};
+    use crate::{Batch, Events, Interface, Options};
     use hexdump::hexdump;
+    use smoltcp::wire::EthernetProtocol::Arp;
+    use std::iter::successors;
     use std::net::{IpAddr, Ipv4Addr};
     use std::str::FromStr;
-    use std::sync;
+    use std::time::Duration;
+    use std::{sync, thread};
 
     #[test]
     fn bridged_simple() {
@@ -577,5 +648,144 @@ mod tests {
         );
 
         iface.finalize().unwrap();
+    }
+
+    #[test]
+    fn test_batch() {
+        // Create two interfaces in the same broadcast domain
+        let mut first_iface =
+            Interface::new(Mode::Host(Default::default()), Options::default()).unwrap();
+        let mut second_iface =
+            Interface::new(Mode::Host(Default::default()), Options::default()).unwrap();
+
+        // Retrieve a maximum packet number that can be written to each interface
+        // and ensure that these numbers meet our expectations
+        let Parameter::WriteMaxPackets(first_write_max_packets) = first_iface
+            .parameters()
+            .get(ParameterKind::WriteMaxPackets)
+            .unwrap()
+        else {
+            panic!("expected Parameter::WriteMaxPackets, got something else")
+        };
+        let Parameter::WriteMaxPackets(second_write_max_packets) = first_iface
+            .parameters()
+            .get(ParameterKind::WriteMaxPackets)
+            .unwrap()
+        else {
+            panic!("expected Parameter::WriteMaxPackets, got something else")
+        };
+        assert_eq!(first_write_max_packets, second_write_max_packets);
+        assert_eq!(first_write_max_packets, 256);
+
+        // Retrieve a maximum packet number that can be read from each interface
+        // and ensure that these numbers meet our expectations
+        let Parameter::ReadMaxPackets(first_read_max_packets) = first_iface
+            .parameters()
+            .get(ParameterKind::ReadMaxPackets)
+            .unwrap()
+        else {
+            panic!("expected Parameter::ReadMaxPackets, got something else")
+        };
+        let Parameter::ReadMaxPackets(second_read_max_packets) = first_iface
+            .parameters()
+            .get(ParameterKind::ReadMaxPackets)
+            .unwrap()
+        else {
+            panic!("expected Parameter::ReadMaxPackets, got something else")
+        };
+        assert_eq!(first_read_max_packets, second_read_max_packets);
+        assert_eq!(first_read_max_packets, 256);
+
+        // Retrieve a maximum packet size that can be read/written from/to each interface
+        // and ensure that these sizes meet our expectations
+        let Parameter::MaxPacketSize(first_max_packet_size) = first_iface
+            .parameters()
+            .get(ParameterKind::MaxPacketSize)
+            .unwrap()
+        else {
+            panic!("expected Parameter::MaxPacketSize, got something else")
+        };
+        let Parameter::MaxPacketSize(second_max_packet_size) = first_iface
+            .parameters()
+            .get(ParameterKind::MaxPacketSize)
+            .unwrap()
+        else {
+            panic!("expected Parameter::MaxPacketSize, got something else")
+        };
+        assert_eq!(first_max_packet_size, second_max_packet_size);
+        assert_eq!(first_max_packet_size, 1514);
+
+        // Send 256 packets from the first interface
+        // in exponential batches (1, 2, 4, 8, etc.),
+        // where each packet bears a payload of bytes
+        // identical to its number N, repeated N times
+        let mut bufs =
+            vec![vec![0u8; first_max_packet_size as usize]; first_read_max_packets as usize];
+        let mut batch = Batch::preallocate(bufs.len());
+
+        for range in exponential_ranges(bufs.len()) {
+            let bufs: Vec<&mut [u8]> = range
+                .zip(&mut bufs)
+                .map(|(number, buf)| craft_packet_with_number(buf, number as u8))
+                .collect();
+
+            let n = first_iface.write_batch(&mut batch, &bufs).unwrap();
+            assert_eq!(n, bufs.len());
+        }
+
+        // Wait a bit for the packets to be processed by the kernel
+        thread::sleep(Duration::from_secs(1));
+
+        // Read packets from the second interface
+        let pktcnt = second_iface.read_batch(&mut batch, &mut bufs).unwrap();
+        assert_eq!(pktcnt, 256);
+
+        for (i, buf) in batch.packet_sized_bufs(&bufs).take(pktcnt).enumerate() {
+            // Validate packet size: Ethernet frame (6 + 6 + 2 = 14 bytes) + payload (i bytes)
+            assert_eq!(buf.len(), 14 + i);
+
+            // Decode ethernet frame and validate it's fields
+            let frame = smoltcp::wire::EthernetFrame::new_checked(buf).unwrap();
+            assert_eq!(frame.src_addr().0, [0x02, 0x00, 0x00, 0x00, 0x00, 0x01]);
+            assert_eq!(frame.dst_addr().0, [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+            assert_eq!(frame.ethertype(), Arp);
+
+            // Validate frame's payload
+            let expected_payload = vec![i as u8; i];
+            assert!(frame.payload().eq(&expected_payload))
+        }
+
+        first_iface.finalize().unwrap();
+        second_iface.finalize().unwrap();
+    }
+
+    fn exponential_ranges(max: usize) -> impl Iterator<Item = std::ops::Range<usize>> {
+        successors(Some(0..1), move |prev| {
+            let next = prev.end..prev.end * 2;
+
+            if next.end <= max {
+                Some(next)
+            } else {
+                None
+            }
+        })
+    }
+
+    fn craft_packet_with_number(mut buf: &mut Vec<u8>, number: u8) -> &mut [u8] {
+        let first_addr = smoltcp::wire::EthernetAddress([0x02, 0x00, 0x00, 0x00, 0x00, 0x01]);
+        let second_addr = smoltcp::wire::EthernetAddress([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+
+        let mut frame = smoltcp::wire::EthernetFrame::new_unchecked(&mut buf);
+        let repr = smoltcp::wire::EthernetRepr {
+            src_addr: first_addr,
+            dst_addr: second_addr,
+            ethertype: smoltcp::wire::EthernetProtocol::Arp,
+        };
+        repr.emit(&mut frame);
+
+        let payload = vec![number; number as usize];
+        frame.payload_mut()[..payload.len()].copy_from_slice(&payload);
+
+        &mut buf[..repr.buffer_len() + payload.len()]
     }
 }
