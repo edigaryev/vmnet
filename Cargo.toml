@@ -18,7 +18,7 @@ default-target = "aarch64-apple-darwin"
 members = ["vmnet-derive"]
 
 [dev-dependencies]
-smoltcp = "0.8.1"
+smoltcp = "0.12.0"
 
 [dependencies]
 libc = "0.2.126"
@@ -26,8 +26,8 @@ block = "0.1.6"
 uuid = { version = "1.1.1", features = ["v4"] }
 hexdump = "0.1.1"
 lazy_static = "1.4.0"
-bitflags = "1.3.2"
-num_enum = "0.5.7"
-thiserror = "1.0.31"
-enum-iterator = "1.1.1"
+bitflags = "2.10.0"
+num_enum = "0.7.5"
+thiserror = "2.0.17"
+enum-iterator = "2.3.0"
 vmnet-derive = { version = "0.5.1", path = "./vmnet-derive" }
