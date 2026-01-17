@@ -11,7 +11,8 @@ keywords = ["macos"]
 categories = ["os::macos-apis"]
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.docs.rs]
+default-target = "aarch64-apple-darwin"
 
 [workspace]
 members = ["vmnet-derive"]
