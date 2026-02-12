@@ -41,8 +41,20 @@ impl From<Options> for Vec<Parameter> {
     fn from(options: Options) -> Self {
         let mut result = Vec::new();
 
+        if let Some(allocate_mac_address) = options.allocate_mac_address {
+            result.push(Parameter::AllocateMACAddress(allocate_mac_address));
+        }
+
+        if let Some(enable_checksum_offload) = options.enable_checksum_offload {
+            result.push(Parameter::EnableChecksumOffload(enable_checksum_offload));
+        }
+
         if let Some(enable_isolation) = options.enable_isolation {
             result.push(Parameter::EnableIsolation(enable_isolation));
+        }
+
+        if let Some(enable_tso) = options.enable_tso {
+            result.push(Parameter::EnableTSO(enable_tso));
         }
 
         if let Some(interface_id) = options.interface_id {
