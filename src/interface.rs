@@ -2,7 +2,8 @@ use crate::ffi::dispatch::{dispatch_get_global_queue, DispatchQueueGlobalT};
 use crate::ffi::vmnet;
 use crate::ffi::vmnet::{vmnet_copy_shared_interface_list, Events, InterfaceRef, Status};
 use crate::ffi::xpc::{
-    xpc_array_get_count, xpc_array_get_string, xpc_array_get_value, Dictionary, XpcData, XpcObjectT,
+    xpc_array_get_count, xpc_array_get_string, xpc_array_get_value, xpc_release, Dictionary,
+    XpcData, XpcObjectT,
 };
 use crate::mode::Mode;
 use crate::parameters::{Parameter, ParameterKind, Parameters};
@@ -452,6 +453,8 @@ pub fn shared_interface_list() -> Vec<String> {
             .to_string();
         result.push(string_value);
     }
+
+    unsafe { xpc_release(shared_interface_list) };
 
     result
 }
