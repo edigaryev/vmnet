@@ -31,3 +31,4 @@ num_enum = "0.7.5"
 thiserror = "2.0.17"
 enum-iterator = "2.3.0"
 vmnet-derive = { version = "0.5.1", path = "./vmnet-derive" }
+serial_test = "3.4.0"

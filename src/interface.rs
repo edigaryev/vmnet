@@ -14,6 +14,8 @@ use std::os::raw::c_int;
 
 use crate::batch::Batch;
 use crate::port_forwarding::{AddressFamily, Protocol, Rule};
+#[cfg(test)]
+use serial_test::serial;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::ffi::{c_void, CStr};
@@ -460,6 +462,7 @@ pub fn shared_interface_list() -> Vec<String> {
 }
 
 #[cfg(test)]
+#[serial]
 mod tests {
     use crate::interface::shared_interface_list;
     use crate::mode::{Bridged, Host, Mode, Shared};
