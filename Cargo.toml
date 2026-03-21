@@ -18,7 +18,7 @@ default-target = "aarch64-apple-darwin"
 members = ["vmnet-derive"]
 
 [dev-dependencies]
-smoltcp = "0.12.0"
+smoltcp = "0.13.0"
 
 [dependencies]
 libc = "0.2.126"
