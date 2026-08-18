@@ -85,7 +85,7 @@ impl Interface {
         let interface_settings = Dictionary::from(interface_settings);
 
         let (tx, rx) = sync::mpsc::sync_channel(1);
-        let block = block::ConcreteBlock::new(
+        let block = block2::RcBlock::new(
             move |status: vmnet::VmnetReturnT, interface_desc: XpcObjectT| {
                 tx.send((status, Parameters::from_xpc(interface_desc)))
                     .unwrap();
@@ -128,7 +128,7 @@ impl Interface {
         F: Fn(Events, &Parameters) + 'static,
     {
         let block =
-            block::ConcreteBlock::new(move |events: vmnet::InterfaceEventT, xdict: XpcObjectT| {
+            block2::RcBlock::new(move |events: vmnet::InterfaceEventT, xdict: XpcObjectT| {
                 let params = Parameters::from_xpc(xdict);
                 cb(Events::from_bits_truncate(events), &params);
             });
@@ -280,7 +280,7 @@ impl Interface {
         internal_port: u16,
     ) -> Result<()> {
         let (tx, rx) = sync::mpsc::sync_channel(1);
-        let block = block::ConcreteBlock::new(move |status: vmnet::VmnetReturnT| {
+        let block = block2::RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
         });
         let block = block.copy();
@@ -309,7 +309,7 @@ impl Interface {
     /// List port forwarding rules on an interface.
     pub fn port_forwarding_rules(&mut self, address_family: AddressFamily) -> Result<Vec<Rule>> {
         let (tx, rx) = sync::mpsc::sync_channel(1);
-        let block = block::ConcreteBlock::new(move |xpc_object: XpcObjectT| {
+        let block = block2::RcBlock::new(move |xpc_object: XpcObjectT| {
             let mut result = Vec::new();
 
             if xpc_object.is_null() {
@@ -389,7 +389,7 @@ impl Interface {
         external_port: u16,
     ) -> Result<()> {
         let (tx, rx) = sync::mpsc::sync_channel(1);
-        let block = block::ConcreteBlock::new(move |status: vmnet::VmnetReturnT| {
+        let block = block2::RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
         });
         let block = block.copy();
@@ -412,7 +412,7 @@ impl Interface {
     /// which will simply ignore any errors).
     pub fn finalize(&mut self) -> Result<()> {
         let (tx, rx) = sync::mpsc::sync_channel(1);
-        let block = block::ConcreteBlock::new(move |status: vmnet::VmnetReturnT| {
+        let block = block2::RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
         });
         let block = block.copy();
@@ -613,7 +613,7 @@ mod tests {
 
         // Retrieve the installed rules and sort them by external_port in ascending order
         let mut installed_rules = iface.port_forwarding_rules(AddressFamily::Ipv4).unwrap();
-        installed_rules.sort_by(|x, y| x.external_port.cmp(&y.external_port));
+        installed_rules.sort_by_key(|x| x.external_port);
 
         // Ensure that the installed rules reflect our previous actions
         assert_eq!(
