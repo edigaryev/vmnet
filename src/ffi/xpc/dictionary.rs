@@ -3,12 +3,33 @@ use crate::ffi::xpc::{
     xpc_dictionary_set_bool, xpc_dictionary_set_string, xpc_dictionary_set_uint64,
     xpc_dictionary_set_uuid, xpc_release, xpc_retain, XpcData, XpcObjectT,
 };
-use block::ConcreteBlock;
+use block2::RcBlock;
+use objc2::encode::{Encode, Encoding};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::rc::Rc;
+
+#[repr(transparent)]
+#[derive(Clone, Copy)]
+struct CBool(bool);
+
+impl CBool {
+    const TRUE: Self = Self(true);
+    const FALSE: Self = Self(false);
+}
+
+// SAFETY: `xpc_dictionary_applier_t` returns C `bool`[1], which preprocesses
+// to C99 `_Bool`[2]; objc2 recommends using a transparent wrapper around
+// `bool` in this case[3].
+//
+// [1]: grep xpc_dictionary_applier_t "$(xcrun --show-sdk-path)/usr/include/xpc/xpc.h"
+// [2]: grep '#define bool' "$(xcrun clang -print-resource-dir)/include/stdbool.h"
+// [3]: https://docs.rs/objc2/latest/objc2/runtime/struct.Bool.html
+unsafe impl Encode for CBool {
+    const ENCODING: Encoding = Encoding::Bool;
+}
 
 pub struct Dictionary {
     xdict: XpcObjectT,
@@ -100,25 +121,25 @@ impl TryFrom<Dictionary> for HashMap<String, XpcData> {
         let result = Rc::new(RefCell::new(HashMap::new()));
         let result_weak = Rc::downgrade(&result);
 
-        let block = ConcreteBlock::new(move |key: *const c_char, value: XpcObjectT| -> bool {
-            let key = unsafe { CStr::from_ptr(key).to_string_lossy().to_string() };
+        let block: RcBlock<dyn Fn(*const c_char, XpcObjectT) -> CBool> =
+            RcBlock::new(move |key: *const c_char, value: XpcObjectT| -> CBool {
+                let key = unsafe { CStr::from_ptr(key).to_string_lossy().to_string() };
 
-            let value = match unsafe { XpcData::from_xpc_value(value) } {
-                Some(value) => value,
-                None => return false,
-            };
+                let value = match unsafe { XpcData::from_xpc_value(value) } {
+                    Some(value) => value,
+                    None => return CBool::FALSE,
+                };
 
-            result_weak
-                .upgrade()
-                .unwrap()
-                .borrow_mut()
-                .insert(key, value);
+                result_weak
+                    .upgrade()
+                    .unwrap()
+                    .borrow_mut()
+                    .insert(key, value);
 
-            true
-        });
-        let block = block.copy();
+                CBool::TRUE
+            });
 
-        let ret = unsafe { xpc_dictionary_apply(value.xdict, &*block as *const _ as *mut _) };
+        let ret = unsafe { xpc_dictionary_apply(value.xdict, RcBlock::as_ptr(&block).cast()) };
         if !ret {
             return Err(());
         }
