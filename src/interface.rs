@@ -10,6 +10,7 @@ use crate::parameters::{Parameter, ParameterKind, Parameters};
 use crate::Error;
 use crate::Result;
 
+use block2::RcBlock;
 use std::os::raw::c_int;
 
 use crate::batch::Batch;
@@ -85,17 +86,18 @@ impl Interface {
         let interface_settings = Dictionary::from(interface_settings);
 
         let (tx, rx) = sync::mpsc::sync_channel(1);
-        let block = block2::RcBlock::new(
+        let block = RcBlock::new(
             move |status: vmnet::VmnetReturnT, interface_desc: XpcObjectT| {
                 tx.send((status, Parameters::from_xpc(interface_desc)))
                     .unwrap();
             },
         );
+
         let interface = unsafe {
             vmnet::vmnet_start_interface(
                 interface_settings.to_xpc(),
                 queue,
-                block2::RcBlock::as_ptr(&block).cast(),
+                RcBlock::as_ptr(&block).cast(),
             )
         };
 
@@ -125,17 +127,17 @@ impl Interface {
     where
         F: Fn(Events, &Parameters) + 'static,
     {
-        let block =
-            block2::RcBlock::new(move |events: vmnet::InterfaceEventT, xdict: XpcObjectT| {
-                let params = Parameters::from_xpc(xdict);
-                cb(Events::from_bits_truncate(events), &params);
-            });
+        let block = RcBlock::new(move |events: vmnet::InterfaceEventT, xdict: XpcObjectT| {
+            let params = Parameters::from_xpc(xdict);
+            cb(Events::from_bits_truncate(events), &params);
+        });
+
         let status = unsafe {
             vmnet::vmnet_interface_set_event_callback(
                 self.interface,
                 events.bits(),
                 self.queue,
-                block2::RcBlock::as_ptr(&block).cast(),
+                RcBlock::as_ptr(&block).cast(),
             )
         };
 
@@ -276,9 +278,10 @@ impl Interface {
         internal_port: u16,
     ) -> Result<()> {
         let (tx, rx) = sync::mpsc::sync_channel(1);
-        let block = block2::RcBlock::new(move |status: vmnet::VmnetReturnT| {
+        let block = RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
         });
+
         let internal_addr_ffi = match internal_addr {
             IpAddr::V4(addr) => Vec::from(addr.octets()),
             IpAddr::V6(addr) => Vec::from(addr.octets()),
@@ -292,7 +295,7 @@ impl Interface {
                 address_family as u8,
                 internal_addr_ffi.as_ptr().cast(),
                 internal_port,
-                block2::RcBlock::as_ptr(&block).cast(),
+                RcBlock::as_ptr(&block).cast(),
             )
         };
         Status::from_ffi(status)?;
@@ -303,7 +306,7 @@ impl Interface {
     /// List port forwarding rules on an interface.
     pub fn port_forwarding_rules(&mut self, address_family: AddressFamily) -> Result<Vec<Rule>> {
         let (tx, rx) = sync::mpsc::sync_channel(1);
-        let block = block2::RcBlock::new(move |xpc_object: XpcObjectT| {
+        let block = RcBlock::new(move |xpc_object: XpcObjectT| {
             let mut result = Vec::new();
 
             if xpc_object.is_null() {
@@ -361,11 +364,12 @@ impl Interface {
 
             tx.send(Ok(result)).unwrap();
         });
+
         let status = unsafe {
             vmnet::vmnet_interface_get_ip_port_forwarding_rules(
                 self.interface,
                 address_family as u8,
-                block2::RcBlock::as_ptr(&block).cast(),
+                RcBlock::as_ptr(&block).cast(),
             )
         };
         Status::from_ffi(status)?;
@@ -381,16 +385,17 @@ impl Interface {
         external_port: u16,
     ) -> Result<()> {
         let (tx, rx) = sync::mpsc::sync_channel(1);
-        let block = block2::RcBlock::new(move |status: vmnet::VmnetReturnT| {
+        let block = RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
         });
+
         let status = unsafe {
             vmnet::vmnet_interface_remove_ip_port_forwarding_rule(
                 self.interface,
                 protocol as u8,
                 external_port,
                 address_family as u8,
-                block2::RcBlock::as_ptr(&block).cast(),
+                RcBlock::as_ptr(&block).cast(),
             )
         };
         Status::from_ffi(status)?;
@@ -402,15 +407,12 @@ impl Interface {
     /// which will simply ignore any errors).
     pub fn finalize(&mut self) -> Result<()> {
         let (tx, rx) = sync::mpsc::sync_channel(1);
-        let block = block2::RcBlock::new(move |status: vmnet::VmnetReturnT| {
+        let block = RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
         });
+
         let status = unsafe {
-            vmnet::vmnet_stop_interface(
-                self.interface,
-                self.queue,
-                block2::RcBlock::as_ptr(&block).cast(),
-            )
+            vmnet::vmnet_stop_interface(self.interface, self.queue, RcBlock::as_ptr(&block).cast())
         };
         Status::from_ffi(status)?;
 
