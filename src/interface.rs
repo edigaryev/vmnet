@@ -91,13 +91,11 @@ impl Interface {
                     .unwrap();
             },
         );
-        let block = block.copy();
-
         let interface = unsafe {
             vmnet::vmnet_start_interface(
                 interface_settings.to_xpc(),
                 queue,
-                &*block as *const _ as *mut _,
+                block2::RcBlock::as_ptr(&block).cast(),
             )
         };
 
@@ -132,14 +130,12 @@ impl Interface {
                 let params = Parameters::from_xpc(xdict);
                 cb(Events::from_bits_truncate(events), &params);
             });
-        let block = block.copy();
-
         let status = unsafe {
             vmnet::vmnet_interface_set_event_callback(
                 self.interface,
                 events.bits(),
                 self.queue,
-                &*block as *const _ as *mut _,
+                block2::RcBlock::as_ptr(&block).cast(),
             )
         };
 
@@ -283,8 +279,6 @@ impl Interface {
         let block = block2::RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
         });
-        let block = block.copy();
-
         let internal_addr_ffi = match internal_addr {
             IpAddr::V4(addr) => Vec::from(addr.octets()),
             IpAddr::V6(addr) => Vec::from(addr.octets()),
@@ -298,7 +292,7 @@ impl Interface {
                 address_family as u8,
                 internal_addr_ffi.as_ptr().cast(),
                 internal_port,
-                &*block as *const _ as *mut _,
+                block2::RcBlock::as_ptr(&block).cast(),
             )
         };
         Status::from_ffi(status)?;
@@ -367,13 +361,11 @@ impl Interface {
 
             tx.send(Ok(result)).unwrap();
         });
-        let block = block.copy();
-
         let status = unsafe {
             vmnet::vmnet_interface_get_ip_port_forwarding_rules(
                 self.interface,
                 address_family as u8,
-                &*block as *const _ as *mut _,
+                block2::RcBlock::as_ptr(&block).cast(),
             )
         };
         Status::from_ffi(status)?;
@@ -392,15 +384,13 @@ impl Interface {
         let block = block2::RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
         });
-        let block = block.copy();
-
         let status = unsafe {
             vmnet::vmnet_interface_remove_ip_port_forwarding_rule(
                 self.interface,
                 protocol as u8,
                 external_port,
                 address_family as u8,
-                &*block as *const _ as *mut _,
+                block2::RcBlock::as_ptr(&block).cast(),
             )
         };
         Status::from_ffi(status)?;
@@ -415,10 +405,12 @@ impl Interface {
         let block = block2::RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
         });
-        let block = block.copy();
-
         let status = unsafe {
-            vmnet::vmnet_stop_interface(self.interface, self.queue, &*block as *const _ as *mut _)
+            vmnet::vmnet_stop_interface(
+                self.interface,
+                self.queue,
+                block2::RcBlock::as_ptr(&block).cast(),
+            )
         };
         Status::from_ffi(status)?;
 
