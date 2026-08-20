@@ -84,6 +84,4 @@ jobs:
       - name: Publish crates
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: |
-          cargo publish -p vmnet-derive || true
-          cargo publish
+        run: cargo publish --workspace
