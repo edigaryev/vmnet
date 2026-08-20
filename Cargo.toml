@@ -1,6 +1,6 @@
 [package]
 name = "vmnet"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["Nikolay Edigaryev <edigaryev@gmail.com>"]
 license = "MIT"
 description = "Apple's vmnet.framework bindings"
@@ -31,5 +31,5 @@ bitflags = "2.10.0"
 num_enum = "0.7.5"
 thiserror = "2.0.17"
 enum-iterator = "2.3.0"
-vmnet-derive = { version = "0.5.1", path = "./vmnet-derive" }
+vmnet-derive = { version = "0.6.0", path = "./vmnet-derive" }
 serial_test = "4.0.1"
