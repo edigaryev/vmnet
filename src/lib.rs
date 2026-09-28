@@ -4,6 +4,10 @@ pub use ffi::vmnet::{Events, Status};
 /// Interface modes and their supporting structures and enumerations.
 pub mod mode;
 
+/// Explicit networks and their configuration.
+pub mod network;
+pub use network::{Network, NetworkConfiguration};
+
 /// Parameters that can be [retrieved from the interface](Interface::parameters()) or received from an [interface callback call](Interface::set_event_callback).
 pub mod parameters;
 
