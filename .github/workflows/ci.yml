@@ -23,8 +23,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS Sequoia
-            runner: macos-15
           - name: macOS Tahoe
             runner: macos-26
     steps:

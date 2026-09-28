@@ -72,49 +72,69 @@ impl From<Options> for Vec<Parameter> {
 impl Interface {
     /// Creates a new interface in a specified mode and with the specified options.
     pub fn new(mode: Mode, options: Options) -> Result<Interface> {
+        // Combine mode settings with interface options for the legacy start API
+        let mut parameters: Vec<Parameter> = mode.into();
+        parameters.append(&mut options.into());
+
+        Self::start(parameters, |settings, queue, handler| unsafe {
+            vmnet::vmnet_start_interface(settings, queue, handler)
+        })
+    }
+
+    /// Creates a new interface attached to an explicit network.
+    pub fn with_network(network: &crate::Network, options: Options) -> Result<Interface> {
+        Self::start(options.into(), |settings, queue, handler| unsafe {
+            vmnet::vmnet_interface_start_with_network(network.as_raw(), settings, queue, handler)
+        })
+    }
+
+    fn start(
+        parameters: Vec<Parameter>,
+        start: impl FnOnce(XpcObjectT, DispatchQueueGlobalT, *mut c_void) -> InterfaceRef,
+    ) -> Result<Interface> {
         let queue = unsafe { dispatch_get_global_queue(0, 0) };
-
-        let interface_settings: HashMap<String, XpcData> = {
-            let mut interface_settings: Vec<Parameter> = mode.into();
-            interface_settings.append(&mut options.into());
-
-            interface_settings
-                .into_iter()
-                .map(|x| (ParameterKind::from(&x).vmnet_key(), XpcData::from(x)))
-                .collect()
-        };
+        let interface_settings: HashMap<String, XpcData> = parameters
+            .into_iter()
+            .map(|x| (ParameterKind::from(&x).vmnet_key(), XpcData::from(x)))
+            .collect();
         let interface_settings = Dictionary::from(interface_settings);
 
         let (tx, rx) = sync::mpsc::sync_channel(1);
         let block = RcBlock::new(
             move |status: vmnet::VmnetReturnT, interface_desc: XpcObjectT| {
-                tx.send((status, Parameters::from_xpc(interface_desc)))
-                    .unwrap();
+                // A start callback may supply a null dictionary on failure
+                let parameters = if interface_desc.is_null() {
+                    let empty = Dictionary::new();
+                    Parameters::from_xpc(unsafe { empty.to_xpc() })
+                } else {
+                    Parameters::from_xpc(interface_desc)
+                };
+
+                tx.send((status, parameters)).unwrap();
             },
         );
-
-        let interface = unsafe {
-            vmnet::vmnet_start_interface(
-                interface_settings.to_xpc(),
-                queue,
-                RcBlock::as_ptr(&block).cast(),
-            )
-        };
-
+        let interface = start(
+            unsafe { interface_settings.to_xpc() },
+            queue,
+            RcBlock::as_ptr(&block).cast(),
+        );
         if interface.is_null() {
             return Err(Error::VmnetStartInterfaceFailed);
         }
 
         let (status, parameters) = rx.recv().unwrap();
 
-        Status::from_ffi(status)?;
-
-        Ok(Interface {
+        // Own the handle before checking status so a failed start is stopped on drop
+        let interface = Interface {
             queue,
             interface,
             parameters,
             finalized: false,
-        })
+        };
+
+        Status::from_ffi(status)?;
+
+        Ok(interface)
     }
 
     /// Retrieves interface parameters (for example, an [assigned gateway IP address](crate::parameters::ParameterKind::StartAddress) or an [MTU](crate::parameters::ParameterKind::MTU)) that are available only after the interface is created.
@@ -460,16 +480,53 @@ pub fn shared_interface_list() -> Vec<String> {
 mod tests {
     use crate::interface::shared_interface_list;
     use crate::mode::{Bridged, Host, Mode, Shared};
+    use crate::network::Mode as NetworkMode;
     use crate::parameters::{Parameter, ParameterKind};
     use crate::port_forwarding::{AddressFamily, Protocol, Rule};
-    use crate::{Batch, Events, Interface, Options};
+    use crate::{Batch, Error, Events, Interface, Network, NetworkConfiguration, Options};
     use hexdump::hexdump;
     use smoltcp::wire::EthernetProtocol::Arp;
     use std::iter::successors;
     use std::net::{IpAddr, Ipv4Addr};
     use std::str::FromStr;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
     use std::{sync, thread};
+
+    #[test]
+    fn network_packet_exchange() {
+        let configuration = NetworkConfiguration::new(NetworkMode::Host).unwrap();
+        let network = Network::new(&configuration).unwrap();
+        // Verify the network remains usable after dropping its configuration
+        drop(configuration);
+
+        let mut first_iface = Interface::with_network(&network, Options::default()).unwrap();
+        let mut second_iface = Interface::with_network(&network, Options::default()).unwrap();
+        // Verify the interfaces remain usable after dropping their network
+        drop(network);
+
+        // Send a broadcast packet with a recognizable payload
+        let mut send_buf = vec![0; 1514];
+        let packet = craft_packet_with_number(&mut send_buf, 64);
+        assert_eq!(first_iface.write(packet).unwrap(), packet.len());
+
+        // Wait up to five seconds for our exact packet, ignoring unrelated traffic
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut recv_buf = [0; 1514];
+
+        loop {
+            assert!(Instant::now() < deadline, "packet delivery timed out");
+
+            match second_iface.read(&mut recv_buf) {
+                Ok(size) if recv_buf[..size] == packet[..] => break,
+                Ok(_) => {}
+                Err(Error::VmnetReadNothing) => thread::sleep(Duration::from_millis(10)),
+                Err(error) => panic!("packet read failed: {error}"),
+            }
+        }
+
+        first_iface.finalize().unwrap();
+        second_iface.finalize().unwrap();
+    }
 
     #[test]
     fn bridged_simple() {

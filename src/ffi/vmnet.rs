@@ -2,11 +2,13 @@ use crate::error;
 use crate::ffi::dispatch::DispatchQueueGlobalT;
 use crate::ffi::xpc::XpcObjectT;
 use bitflags::bitflags;
-use libc::{iovec, size_t};
+use libc::{in_addr, iovec, size_t};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::ffi::c_void;
 use std::os::raw::{c_char, c_int};
 
+pub type NetworkConfigurationRef = *mut c_void;
+pub type NetworkRef = *mut c_void;
 pub type InterfaceRef = *mut c_void;
 pub type InterfaceEventT = u32;
 pub type VmnetReturnT = u32;
@@ -22,17 +24,47 @@ pub struct vmpktdesc {
 
 #[link(name = "vmnet", kind = "framework")]
 extern "C" {
+    // Network configuration functions
+    pub fn vmnet_network_configuration_create(
+        mode: u32,
+        status: *mut VmnetReturnT,
+    ) -> NetworkConfigurationRef;
+    pub fn vmnet_network_configuration_set_ipv4_subnet(
+        config: NetworkConfigurationRef,
+        subnet_addr: *const in_addr,
+        subnet_mask: *const in_addr,
+    ) -> VmnetReturnT;
+    // Darwin's ether_addr_t contains only unsigned char octet[6], with alignment
+    // one and no padding, so a pointer to [u8; 6] has the same pointee layout.
+    pub fn vmnet_network_configuration_add_dhcp_reservation(
+        config: NetworkConfigurationRef,
+        client: *const [u8; 6],
+        reservation: *const in_addr,
+    ) -> VmnetReturnT;
+
+    // Network functions
+    pub fn vmnet_network_create(
+        configuration: NetworkConfigurationRef,
+        status: *mut VmnetReturnT,
+    ) -> NetworkRef;
+
     // Interface functions
     pub fn vmnet_start_interface(
         interface_desc: XpcObjectT,
         queue: DispatchQueueGlobalT,
         handler: *mut c_void,
     ) -> InterfaceRef;
+    pub fn vmnet_interface_start_with_network(
+        network: NetworkRef,
+        interface_desc: XpcObjectT,
+        queue: DispatchQueueGlobalT,
+        start_block: *mut c_void,
+    ) -> InterfaceRef;
     pub fn vmnet_interface_set_event_callback(
         interface: InterfaceRef,
         event_mask: InterfaceEventT,
         queue: DispatchQueueGlobalT,
-        handler: *mut c_void,
+        callback: *mut c_void,
     ) -> VmnetReturnT;
     pub fn vmnet_read(
         interface: InterfaceRef,
@@ -135,6 +167,7 @@ pub enum Status {
     BufferExhausted = 1007,
     TooManyPackets = 1008,
     SharingServiceBusy = 1009,
+    NotAuthorized = 1010,
 }
 
 impl Status {
