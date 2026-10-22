@@ -319,9 +319,10 @@ impl Interface {
             tx.send(status).unwrap();
         });
 
-        let internal_addr_ffi = match internal_addr {
-            IpAddr::V4(addr) => Vec::from(addr.octets()),
-            IpAddr::V6(addr) => Vec::from(addr.octets()),
+        let internal_addr_ffi = match (address_family, internal_addr) {
+            (AddressFamily::Ipv4, IpAddr::V4(addr)) => Vec::from(addr.octets()),
+            (AddressFamily::Ipv6, IpAddr::V6(addr)) => Vec::from(addr.octets()),
+            _ => return Err(Error::AddressFamilyMismatch),
         };
 
         let status = unsafe {

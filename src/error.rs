@@ -11,4 +11,6 @@ pub enum Error {
     VmnetStartInterfaceFailed,
     #[error("vmnet_read() received no packets at this time")]
     VmnetReadNothing,
+    #[error("address family does not match the provided address")]
+    AddressFamilyMismatch,
 }
