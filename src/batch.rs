@@ -9,6 +9,11 @@ pub struct Batch {
     pub(crate) pktdescs: Vec<vmpktdesc>,
 }
 
+// SAFETY: Moving Batch preserves its owned iovec allocation, which never resizes.
+// Buffer pointers are refreshed before each synchronous I/O call, which requires
+// exclusive access. Accessors and drop never dereference saved buffer pointers.
+unsafe impl Send for Batch {}
+
 impl Batch {
     /// Preallocates a batch of size `count` which holds the packet descriptors.
     ///

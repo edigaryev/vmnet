@@ -36,6 +36,11 @@ pub struct Interface {
     finalized: bool,
 }
 
+// SAFETY: The native interface, queues and retained parameters have no thread
+// affinity. Interface operations require exclusive access. Registered callbacks
+// are Send and share one serial event queue, including across replacements.
+unsafe impl Send for Interface {}
+
 /// Options that are common to all interface modes.
 #[derive(Debug, Default)]
 pub struct Options {
@@ -157,7 +162,7 @@ impl Interface {
     /// is replaced while an earlier invocation is still running.
     pub fn set_event_callback<F>(&mut self, events: Events, cb: F) -> Result<()>
     where
-        F: Fn(Events, &Parameters) + 'static,
+        F: Fn(Events, &Parameters) + Send + 'static,
     {
         let block = RcBlock::new(move |events: vmnet::InterfaceEventT, xdict: XpcObjectT| {
             let params = Parameters::from_xpc(xdict);
