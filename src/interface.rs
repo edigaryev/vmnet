@@ -28,6 +28,9 @@ use std::{ptr, sync};
 const EVENT_QUEUE_NAME: &str = "vmnet.events";
 
 /// A virtual network interface.
+///
+/// Calling [`finalize`](Interface::finalize) or [`Drop`] from
+/// callbacks or their capture destructors can deadlock.
 pub struct Interface {
     queue: DispatchRetained<DispatchQueue>,
     event_queue: DispatchRetained<DispatchQueue>,
@@ -164,6 +167,10 @@ impl Interface {
     where
         F: Fn(Events, &Parameters) + Send + 'static,
     {
+        if self.finalized {
+            return Err(Error::InterfaceFinalized);
+        }
+
         let block = RcBlock::new(move |events: vmnet::InterfaceEventT, xdict: XpcObjectT| {
             let params = Parameters::from_xpc(xdict);
             cb(Events::from_bits_truncate(events), &params);
@@ -183,6 +190,10 @@ impl Interface {
 
     /// Removes the event callback scheduled by a call to [`set_event_callback()`](Interface::set_event_callback()).
     pub fn clear_event_callback(&mut self) -> Result<()> {
+        if self.finalized {
+            return Err(Error::InterfaceFinalized);
+        }
+
         let status = unsafe {
             vmnet::vmnet_interface_set_event_callback(
                 self.interface,
@@ -197,6 +208,10 @@ impl Interface {
 
     /// Attempts to read a single packet from the interface.
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        if self.finalized {
+            return Err(Error::InterfaceFinalized);
+        }
+
         let mut iov = libc::iovec {
             iov_base: buf.as_mut_ptr().cast(),
             iov_len: buf.len(),
@@ -229,6 +244,10 @@ impl Interface {
     where
         B: AsMut<[u8]>,
     {
+        if self.finalized {
+            return Err(Error::InterfaceFinalized);
+        }
+
         // Update the batch
         for (pktdesc, buf) in batch.pktdescs.iter_mut().zip(bufs.iter_mut()) {
             let buf_mut = buf.as_mut();
@@ -256,6 +275,10 @@ impl Interface {
 
     /// Attempts to write a single packet to the interface.
     pub fn write(&mut self, buf: &[u8]) -> Result<usize> {
+        if self.finalized {
+            return Err(Error::InterfaceFinalized);
+        }
+
         let mut iov = libc::iovec {
             iov_base: buf.as_ptr() as *mut _,
             iov_len: buf.len(),
@@ -284,6 +307,10 @@ impl Interface {
     where
         B: AsRef<[u8]>,
     {
+        if self.finalized {
+            return Err(Error::InterfaceFinalized);
+        }
+
         // Update the batch
         for (pktdesc, buf) in batch.pktdescs.iter_mut().zip(bufs) {
             let buf_ref = buf.as_ref();
@@ -314,6 +341,10 @@ impl Interface {
         internal_addr: IpAddr,
         internal_port: u16,
     ) -> Result<()> {
+        if self.finalized {
+            return Err(Error::InterfaceFinalized);
+        }
+
         let (tx, rx) = sync::mpsc::sync_channel(1);
         let block = RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
@@ -343,6 +374,10 @@ impl Interface {
 
     /// List port forwarding rules on an interface.
     pub fn port_forwarding_rules(&mut self, address_family: AddressFamily) -> Result<Vec<Rule>> {
+        if self.finalized {
+            return Err(Error::InterfaceFinalized);
+        }
+
         let (tx, rx) = sync::mpsc::sync_channel(1);
         let block = RcBlock::new(move |xpc_object: XpcObjectT| {
             let mut result = Vec::new();
@@ -422,6 +457,10 @@ impl Interface {
         protocol: Protocol,
         external_port: u16,
     ) -> Result<()> {
+        if self.finalized {
+            return Err(Error::InterfaceFinalized);
+        }
+
         let (tx, rx) = sync::mpsc::sync_channel(1);
         let block = RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
@@ -443,7 +482,14 @@ impl Interface {
 
     /// Stops the interface, allowing to catch errors (compared to [`drop()`](Interface::drop()),
     /// which will simply ignore any errors).
+    ///
+    /// Once the stop request is accepted, further calls do nothing, even if its
+    /// completion reports an error.
     pub fn finalize(&mut self) -> Result<()> {
+        if self.finalized {
+            return Ok(());
+        }
+
         let (tx, rx) = sync::mpsc::sync_channel(1);
         let block = RcBlock::new(move |status: vmnet::VmnetReturnT| {
             tx.send(status).unwrap();
@@ -454,10 +500,11 @@ impl Interface {
         };
         Status::from_ffi(status)?;
 
+        // An accepted stop consumes the handle, even if completion later fails
+        self.finalized = true;
+
         let status = rx.recv().unwrap();
         Status::from_ffi(status)?;
-
-        self.finalized = true;
 
         Ok(())
     }

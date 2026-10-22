@@ -13,4 +13,6 @@ pub enum Error {
     VmnetReadNothing,
     #[error("address family does not match the provided address")]
     AddressFamilyMismatch,
+    #[error("interface has already been finalized")]
+    InterfaceFinalized,
 }
