@@ -1,4 +1,3 @@
-use crate::ffi::dispatch::{dispatch_get_global_queue, DispatchQueueGlobalT};
 use crate::ffi::vmnet;
 use crate::ffi::vmnet::{vmnet_copy_shared_interface_list, Events, InterfaceRef, Status};
 use crate::ffi::xpc::{
@@ -11,6 +10,9 @@ use crate::Error;
 use crate::Result;
 
 use block2::RcBlock;
+use dispatch2::{
+    DispatchQueue, DispatchQueueGlobalPriority, DispatchRetained, GlobalQueueIdentifier,
+};
 use std::os::raw::c_int;
 
 use crate::batch::Batch;
@@ -23,9 +25,12 @@ use std::ffi::{c_void, CStr};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::{ptr, sync};
 
+const EVENT_QUEUE_NAME: &str = "vmnet.events";
+
 /// A virtual network interface.
 pub struct Interface {
-    queue: DispatchQueueGlobalT,
+    queue: DispatchRetained<DispatchQueue>,
+    event_queue: DispatchRetained<DispatchQueue>,
     interface: InterfaceRef,
     parameters: Parameters,
     finalized: bool,
@@ -90,9 +95,12 @@ impl Interface {
 
     fn start(
         parameters: Vec<Parameter>,
-        start: impl FnOnce(XpcObjectT, DispatchQueueGlobalT, *mut c_void) -> InterfaceRef,
+        start: impl FnOnce(XpcObjectT, &DispatchQueue, *mut c_void) -> InterfaceRef,
     ) -> Result<Interface> {
-        let queue = unsafe { dispatch_get_global_queue(0, 0) };
+        let queue = DispatchQueue::global_queue(GlobalQueueIdentifier::Priority(
+            DispatchQueueGlobalPriority::Default,
+        ));
+        let event_queue = DispatchQueue::new(EVENT_QUEUE_NAME, None);
         let interface_settings: HashMap<String, XpcData> = parameters
             .into_iter()
             .map(|x| (ParameterKind::from(&x).vmnet_key(), XpcData::from(x)))
@@ -115,7 +123,7 @@ impl Interface {
         );
         let interface = start(
             unsafe { interface_settings.to_xpc() },
-            queue,
+            &queue,
             RcBlock::as_ptr(&block).cast(),
         );
         if interface.is_null() {
@@ -127,6 +135,7 @@ impl Interface {
         // Own the handle before checking status so a failed start is stopped on drop
         let interface = Interface {
             queue,
+            event_queue,
             interface,
             parameters,
             finalized: false,
@@ -143,6 +152,9 @@ impl Interface {
     }
 
     /// Schedules a callback to be executed when events for the specified interface are received.
+    ///
+    /// Callbacks for this interface execute serially, including when a callback
+    /// is replaced while an earlier invocation is still running.
     pub fn set_event_callback<F>(&mut self, events: Events, cb: F) -> Result<()>
     where
         F: Fn(Events, &Parameters) + 'static,
@@ -156,7 +168,7 @@ impl Interface {
             vmnet::vmnet_interface_set_event_callback(
                 self.interface,
                 events.bits(),
-                self.queue,
+                Some(&self.event_queue),
                 RcBlock::as_ptr(&block).cast(),
             )
         };
@@ -170,7 +182,7 @@ impl Interface {
             vmnet::vmnet_interface_set_event_callback(
                 self.interface,
                 Events::all().bits(),
-                ptr::null_mut(),
+                None,
                 ptr::null_mut(),
             )
         };
@@ -432,7 +444,7 @@ impl Interface {
         });
 
         let status = unsafe {
-            vmnet::vmnet_stop_interface(self.interface, self.queue, RcBlock::as_ptr(&block).cast())
+            vmnet::vmnet_stop_interface(self.interface, &self.queue, RcBlock::as_ptr(&block).cast())
         };
         Status::from_ffi(status)?;
 
@@ -595,6 +607,66 @@ mod tests {
         let mut iface =
             Interface::new(Mode::Shared(Default::default()), Default::default()).unwrap();
         iface.finalize().unwrap();
+    }
+
+    #[test]
+    fn replacing_event_callback_is_serialized() {
+        // Create two interfaces on an isolated host network
+        let configuration = NetworkConfiguration::new(NetworkMode::Host).unwrap();
+        let network = Network::new(&configuration).unwrap();
+        let mut sender = Interface::with_network(&network, Options::default()).unwrap();
+        let mut receiver = Interface::with_network(&network, Options::default()).unwrap();
+
+        // Coordinate the callbacks with bounded waits
+        let timeout = Duration::from_secs(5);
+        let (old_started_tx, old_started_rx) = sync::mpsc::sync_channel(1);
+        let (release_old_tx, release_old_rx) = sync::mpsc::sync_channel(1);
+        let (new_started_tx, new_started_rx) = sync::mpsc::sync_channel(1);
+
+        // Keep the original callback blocked until explicitly released
+        receiver
+            .set_event_callback(Events::PACKETS_AVAILABLE, move |_, _| {
+                let _ = old_started_tx.try_send(());
+                let _ = release_old_rx.recv_timeout(timeout);
+            })
+            .unwrap();
+
+        // Send a packet and wait for the original callback to start
+        let mut packet = vec![0; 1514];
+        sender
+            .write(craft_packet_with_number(&mut packet, 64))
+            .unwrap();
+        let old_started = old_started_rx.recv_timeout(timeout);
+
+        // Replace the callback while the original invocation is blocked
+        let replacement = receiver.set_event_callback(Events::PACKETS_AVAILABLE, move |_, _| {
+            let _ = new_started_tx.try_send(());
+        });
+
+        // Leave the packet unread and check that the replacement stays queued
+        let early_new = new_started_rx.recv_timeout(Duration::from_millis(250));
+
+        // Release the original callback and wait for the replacement to run
+        let _ = release_old_tx.try_send(());
+        let new_started = early_new.or_else(|_| new_started_rx.recv_timeout(timeout));
+
+        // Stop native callbacks before any assertion can unwind the test
+        let cleared = receiver.clear_event_callback();
+        let receiver_stopped = receiver.finalize();
+        let sender_stopped = sender.finalize();
+
+        // Verify that the replacement ran only after the original was released
+        old_started.expect("original callback did not start");
+        replacement.unwrap();
+        assert_eq!(
+            early_new,
+            Err(sync::mpsc::RecvTimeoutError::Timeout),
+            "replacement callback started before the original was released"
+        );
+        new_started.expect("replacement callback did not start");
+        cleared.unwrap();
+        receiver_stopped.unwrap();
+        sender_stopped.unwrap();
     }
 
     #[test]

@@ -1,7 +1,7 @@
 use crate::error;
-use crate::ffi::dispatch::DispatchQueueGlobalT;
 use crate::ffi::xpc::XpcObjectT;
 use bitflags::bitflags;
+use dispatch2::DispatchQueue;
 use libc::{in_addr, iovec, size_t};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::ffi::c_void;
@@ -51,19 +51,19 @@ extern "C" {
     // Interface functions
     pub fn vmnet_start_interface(
         interface_desc: XpcObjectT,
-        queue: DispatchQueueGlobalT,
+        queue: &DispatchQueue,
         handler: *mut c_void,
     ) -> InterfaceRef;
     pub fn vmnet_interface_start_with_network(
         network: NetworkRef,
         interface_desc: XpcObjectT,
-        queue: DispatchQueueGlobalT,
+        queue: &DispatchQueue,
         start_block: *mut c_void,
     ) -> InterfaceRef;
     pub fn vmnet_interface_set_event_callback(
         interface: InterfaceRef,
         event_mask: InterfaceEventT,
-        queue: DispatchQueueGlobalT,
+        queue: Option<&DispatchQueue>,
         callback: *mut c_void,
     ) -> VmnetReturnT;
     pub fn vmnet_read(
@@ -78,7 +78,7 @@ extern "C" {
     ) -> VmnetReturnT;
     pub fn vmnet_stop_interface(
         interface: InterfaceRef,
-        queue: DispatchQueueGlobalT,
+        queue: &DispatchQueue,
         handler: *mut c_void,
     ) -> VmnetReturnT;
 
