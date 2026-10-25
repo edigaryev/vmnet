@@ -845,6 +845,33 @@ mod tests {
     }
 
     #[test]
+    fn network_port_forwarding() {
+        let addr: IpAddr = Ipv4Addr::new(10, 88, 12, 2).into();
+
+        // Configure port forwarding on the network
+        let mut configuration = NetworkConfiguration::new(NetworkMode::Shared).unwrap();
+        configuration
+            .set_ipv4_subnet(
+                Ipv4Addr::new(10, 88, 12, 1),
+                Ipv4Addr::new(255, 255, 255, 248),
+            )
+            .unwrap();
+        configuration
+            .add_port_forwarding_rule(AddressFamily::Ipv4, Protocol::Tcp, 2222, addr, 22)
+            .unwrap();
+        configuration
+            .add_port_forwarding_rule(AddressFamily::Ipv4, Protocol::Tcp, 8080, addr, 80)
+            .unwrap();
+
+        // Create the network and attach an interface. The interface port
+        // forwarding functions fail on it, so the rules can't be listed back
+        let network = Network::new(&configuration).unwrap();
+        let mut iface = Interface::with_network(&network, Options::default()).unwrap();
+
+        iface.finalize().unwrap();
+    }
+
+    #[test]
     fn test_batch() {
         // Create two interfaces in the same broadcast domain
         let mut first_iface =
