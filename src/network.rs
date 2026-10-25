@@ -1,7 +1,8 @@
 use crate::ffi::vmnet::{self, NetworkRef, Status};
-use crate::Result;
+use crate::port_forwarding::{AddressFamily, Protocol};
+use crate::{Error, Result};
 use objc2_core_foundation::{CFRetained, CFType};
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::ptr::NonNull;
 
 /// Modes supported by explicit networks.
@@ -60,6 +61,46 @@ impl NetworkConfiguration {
                 CFRetained::as_ptr(&self.handle).as_ptr().cast(),
                 &mac_address,
                 &ipv4_to_native(address),
+            )
+        };
+
+        Status::from_ffi(status)?;
+
+        Ok(())
+    }
+
+    /// Adds a port forwarding rule to the network.
+    ///
+    /// Rules must be added before the network is created:
+    /// [`Interface::port_forwarding_rule_add`] can't add rules to an interface
+    /// attached to a network. `internal_addr` must be inside the network's
+    /// subnet; use [`set_ipv4_subnet`](Self::set_ipv4_subnet) and
+    /// [`add_dhcp_reservation`](Self::add_dhcp_reservation) to give a guest a
+    /// known address.
+    ///
+    /// [`Interface::port_forwarding_rule_add`]: crate::Interface::port_forwarding_rule_add
+    pub fn add_port_forwarding_rule(
+        &mut self,
+        address_family: AddressFamily,
+        protocol: Protocol,
+        external_port: u16,
+        internal_addr: IpAddr,
+        internal_port: u16,
+    ) -> Result<()> {
+        let internal_addr_ffi = match (address_family, internal_addr) {
+            (AddressFamily::Ipv4, IpAddr::V4(addr)) => Vec::from(addr.octets()),
+            (AddressFamily::Ipv6, IpAddr::V6(addr)) => Vec::from(addr.octets()),
+            _ => return Err(Error::AddressFamilyMismatch),
+        };
+
+        let status = unsafe {
+            vmnet::vmnet_network_configuration_add_port_forwarding_rule(
+                CFRetained::as_ptr(&self.handle).as_ptr().cast(),
+                protocol as u8,
+                address_family as u8,
+                internal_port,
+                external_port,
+                internal_addr_ffi.as_ptr().cast(),
             )
         };
 
@@ -127,5 +168,31 @@ mod tests {
             .unwrap();
 
         assert!(Network::new(&second_configuration).is_err());
+    }
+
+    #[test]
+    fn port_forwarding_rule_address_family_mismatch() {
+        let mut configuration = NetworkConfiguration::new(Mode::Shared).unwrap();
+
+        assert!(matches!(
+            configuration.add_port_forwarding_rule(
+                AddressFamily::Ipv6,
+                Protocol::Tcp,
+                2222,
+                Ipv4Addr::new(192, 168, 0, 2).into(),
+                22,
+            ),
+            Err(Error::AddressFamilyMismatch)
+        ));
+        assert!(matches!(
+            configuration.add_port_forwarding_rule(
+                AddressFamily::Ipv4,
+                Protocol::Tcp,
+                2222,
+                "fd00::2".parse::<std::net::Ipv6Addr>().unwrap().into(),
+                22,
+            ),
+            Err(Error::AddressFamilyMismatch)
+        ));
     }
 }

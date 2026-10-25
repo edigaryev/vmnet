@@ -45,6 +45,16 @@ extern "C" {
         client: *const [u8; 6],
         reservation: *const in_addr,
     ) -> VmnetReturnT;
+    // internal_port comes before external_port here, unlike in
+    // vmnet_interface_add_ip_port_forwarding_rule
+    pub fn vmnet_network_configuration_add_port_forwarding_rule(
+        config: NetworkConfigurationRef,
+        protocol: u8,
+        address_family: u8,
+        internal_port: u16,
+        external_port: u16,
+        internal_address: *const c_void,
+    ) -> VmnetReturnT;
 
     // Network functions
     pub fn vmnet_network_create(
