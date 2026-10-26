@@ -49,7 +49,7 @@ impl Batch {
     /// Note that since a [`Batch`] abstraction lacks any information about the number of packets received,
     /// use [`Iterator::take()`](Iterator::take) on the returned iterator in order to limit it
     /// to only useful items.
-    pub fn packet_sizes(&self) -> impl Iterator<Item = usize> + use<'_> {
+    pub fn packet_sizes(&self) -> impl Iterator<Item = usize> + Send + use<'_> {
         self.pktdescs.iter().map(|pktdesc| pktdesc.vm_pkt_size)
     }
 
