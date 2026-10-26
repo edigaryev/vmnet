@@ -22,6 +22,10 @@ pub struct vmpktdesc {
     pub vm_flags: u32,
 }
 
+// SAFETY: The descriptor's numbers and pointer value can be read concurrently,
+// while accessing memory through vm_pkt_iov requires unsafe code.
+unsafe impl Sync for vmpktdesc {}
+
 #[link(name = "vmnet", kind = "framework")]
 extern "C" {
     // Network configuration functions
