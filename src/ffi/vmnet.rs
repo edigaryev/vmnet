@@ -2,7 +2,7 @@ use crate::error;
 use crate::ffi::xpc::XpcObjectT;
 use bitflags::bitflags;
 use dispatch2::DispatchQueue;
-use libc::{in_addr, iovec, size_t};
+use libc::{in6_addr, in_addr, iovec, size_t};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use std::ffi::c_void;
 use std::os::raw::{c_char, c_int};
@@ -33,10 +33,30 @@ extern "C" {
         mode: u32,
         status: *mut VmnetReturnT,
     ) -> NetworkConfigurationRef;
+    pub fn vmnet_network_configuration_set_external_interface(
+        config: NetworkConfigurationRef,
+        interface_name: *const c_char,
+    ) -> VmnetReturnT;
+    pub fn vmnet_network_configuration_disable_nat44(config: NetworkConfigurationRef);
+    pub fn vmnet_network_configuration_disable_nat66(config: NetworkConfigurationRef);
+    pub fn vmnet_network_configuration_disable_dhcp(config: NetworkConfigurationRef);
+    pub fn vmnet_network_configuration_disable_dns_proxy(config: NetworkConfigurationRef);
+    pub fn vmnet_network_configuration_disable_router_advertisement(
+        config: NetworkConfigurationRef,
+    );
     pub fn vmnet_network_configuration_set_ipv4_subnet(
         config: NetworkConfigurationRef,
         subnet_addr: *const in_addr,
         subnet_mask: *const in_addr,
+    ) -> VmnetReturnT;
+    pub fn vmnet_network_configuration_set_ipv6_prefix(
+        config: NetworkConfigurationRef,
+        prefix: *const in6_addr,
+        len: u8,
+    ) -> VmnetReturnT;
+    pub fn vmnet_network_configuration_set_mtu(
+        config: NetworkConfigurationRef,
+        mtu: u32,
     ) -> VmnetReturnT;
     // Darwin's ether_addr_t contains only unsigned char octet[6], with alignment
     // one and no padding, so a pointer to [u8; 6] has the same pointee layout.
@@ -61,6 +81,16 @@ extern "C" {
         configuration: NetworkConfigurationRef,
         status: *mut VmnetReturnT,
     ) -> NetworkRef;
+    pub fn vmnet_network_get_ipv4_subnet(
+        network: NetworkRef,
+        subnet: *mut in_addr,
+        mask: *mut in_addr,
+    );
+    pub fn vmnet_network_get_ipv6_prefix(
+        network: NetworkRef,
+        prefix: *mut in6_addr,
+        prefix_len: *mut u8,
+    );
 
     // Interface functions
     pub fn vmnet_start_interface(
