@@ -20,12 +20,8 @@ Ensure that your software either has an `com.apple.vm.networking` entitlement or
 Start a NAT interface and receive some packets destined to it:
 
 ```rust
-let shared_mode = Shared {
-    subnet_options: None,
-    ..Default::default()
-};
-
-let mut iface = Interface::new(Mode::Shared(shared_mode), Options::default()).unwrap();
+let mut iface =
+    Interface::new(Mode::Shared(Default::default()), Options::default()).unwrap();
 
 let (tx, rx) = sync::mpsc::sync_channel(0);
 
